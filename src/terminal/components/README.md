@@ -1,7 +1,10 @@
 # 终端组件（components）
 
-终端 UI 相关组件（如 Terminal 根组件、输出渲染、提示符渲染等）。
+M1 已落地的终端 UI 组件：
 
-- 视觉风格：参照 oh-my-zsh 基础样式（暗色背景、等宽字体、模拟 zsh 提示符）。
+- `Terminal.vue`：终端根组件，负责布局、聚焦、提交与自动滚动。
+- `TerminalOutput.vue`：输出块渲染（text/html/system/error/command）。
+- `TerminalInput.vue`：透明 textarea + 镜像文本 + 自绘光标 + 历史导航。
+- `PromptBar.vue`：oh-my-zsh 风格提示符，按 home 缩写路径。
 
-功能开发阶段实现。
+主题与全局样式见 `../theme.css`。
