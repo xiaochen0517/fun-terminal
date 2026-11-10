@@ -73,13 +73,13 @@
 | M0 | 架构与骨架 | 架构确认 + 目录与契约占位 | — | — |
 | M1 | 终端外壳 | 可输入、可回显、可清屏的终端界面与会话状态 | M0 | M |
 | M2 | 命令内核 | 解析 → 注册 → 执行 的完整链路与插件装配 | M1 | M |
-| M3 | VFS 与挂载 | 虚拟文件系统、路径解析、`/mnt` 挂载能力 | M2（纯逻辑可提前开发，随 M2 合入） | M |
-| M4 | 内置命令集 | `echo`/`help`/`history`/`clear`/`pwd`/`cd` | M3 | S |
-| M5 | 目录插件 | `ls`（含 `-a`/`-l`）与 VFS 联动 | M4 | M |
-| M6 | 文本插件 | `cat` 读取文件，错误与二进制识别 | M5 | S |
-| M7 | 数据层 | `StaticDataSource` + 示例文章 + 元数据清单 | M2（可与 M3–M6 并行） | S |
-| M8 | 博客插件 | `blog list/read/tags`，Markdown 富文本渲染 | M6、M7 | M |
-| M9 | 图片插件 | `img` 查看图片，画廊挂载 | M6、M7 | S |
+| M3 | VFS 与挂载（核心） | 核心 VFS：节点/路径/挂载管理，`ctx.vfs` 与 `ctx.mounts` | M2（纯逻辑可提前开发，随 M2 合入） | M |
+| M4 | 核心导航命令 | `history`/`pwd`/`cd`（`echo`/`help`/`clear` 已在 M2） | M3 | S |
+| M5 | 核心文件浏览命令 | `ls`（`-a`/`-l`/多路径）与 `cat`（`-n`/二进制识别） | M4 | M |
+| M6 | 内容挂载插件框架 | 插件通过核心 `PluginApi`/`MountApi` 挂载内容树、注册命令（含 `mount`/`unmount` 类命令能力） | M3、M4 | M |
+| M7 | 数据层 | `StaticDataSource` + 示例文章 + 元数据清单 | M2（可与 M3–M5 并行） | S |
+| M8 | 博客插件 | 挂载 `/mnt/blog` + `blog list/read/tags` + Markdown 富文本渲染 | M6、M7 | M |
+| M9 | 图片插件 | 挂载 `/mnt/gallery` + `img` 查看图片 | M6、M7 | S |
 | M10 | 打磨与上线 | 补全、快捷键、响应式、输出上限、部署与文档收尾 | M4、M5、M6、M7、M8、M9 | M |
 
 ### 2.1 依赖关系图
@@ -88,10 +88,11 @@
 M0 架构与骨架（已完成）
  └─ M1 终端外壳
      └─ M2 命令内核
-         ├─ M3 VFS 与挂载 ── M4 内置命令 ── M5 目录插件 ── M6 文本插件
+         ├─ M3 VFS 与挂载（核心）── M4 核心导航命令 ── M5 核心文件浏览命令
+         │        └────────────────────────────── M6 内容挂载插件框架
          ├─ M7 数据层与静态文章
-         │    └─ M8 博客插件（另需 M6 的文本能力）
-         └─ M9 图片插件（另需 M6、M7 的挂载与内容清单）
+         │    └─ M8 博客插件（另需 M6 的挂载与命令能力）
+         └─ M9 图片插件（另需 M6、M7）
 
 M4 + M5 + M6 + M7 + M8 + M9 ── M10 打磨与上线
 ```
@@ -101,10 +102,13 @@ M4 + M5 + M6 + M7 + M8 + M9 ── M10 打磨与上线
 | 并行组合 | 说明 |
 | --- | --- |
 | M1 与 M3（纯逻辑部分） | VFS 是纯 TypeScript 模块，不依赖 UI，可在终端外壳开发期同步实现与单测；与命令链路的集成在 M2 完成后进行 |
-| M4 与 M7 | 内置命令与数据层无直接依赖，可前后脚并行 |
-| M7 与 M5/M6 | 数据层只依赖 `DataSource` 骨架，不依赖 VFS 实现 |
+| M4 与 M7 | 核心导航命令与数据层无直接依赖，可前后脚并行 |
+| M6 与 M5 | 挂载插件框架只依赖 M3 的 `MountApi` 与 M2 的注册表，可与核心文件浏览命令并行 |
+| M7 与 M3/M5 | 数据层只依赖 `DataSource` 骨架，不依赖 VFS 实现 |
 
 > 串行时按 M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10 执行即可，依赖均满足。
+
+> **20261110 已确认**：VFS、路径、挂载与 `pwd`/`cd`/`ls`/`cat` 等常用命令归入**核心**；插件通过 `PluginApi`（registry/mounts/vfs/dataSource）挂载内容树并注册命令，可在命令中通过 `ctx.mounts` 提供 `mount`/`unmount` 等挂载管理能力；M4/M5 为核心命令，M6 改为「内容挂载插件框架」，`blog`/`img` 留在 M8/M9 插件中。
 
 ## 3. 里程碑详情
 
@@ -183,12 +187,14 @@ src/stores/counter.ts                     删除（D-12）
 
 **目标**：把「用户输入」变成「可插拔命令的可靠执行」，完成插件化架构的最小闭环。
 
+**状态**：已完成（20261110 人工页面验收通过）。
+
 **前置**：M1
 
 **范围**：
 
-- 包含：命令解析、注册表、执行器、上下文构建、插件安装入口、未知命令与异常兜底。
-- 不包含：具体业务命令（M4 起）、VFS 实现（M3）、Tab 补全（M10）。
+- 包含：命令解析、注册表、执行器、上下文构建、插件安装入口、未知命令与异常兜底；首批核心命令 `echo`/`help`/`clear`（`clear` 由命令接管，删除 M1 字符串特例）。
+- 不包含：其余核心命令（M4/M5）、内容与插件命令（M6 起）、VFS 实现（M3）、Tab 补全（M10）。
 
 **交付物**：
 
@@ -200,7 +206,11 @@ src/terminal/registry/__tests__/*.spec.ts  注册/查找/冲突用例
 src/terminal/executor/CommandExecutor.ts   新增执行器（查找 → 构建上下文 → 执行 → 兜底）
 src/terminal/executor/context.ts           新增上下文构建函数（命令与测试共用）
 src/commands/index.ts                      新增运行时装配：registry + builtin + plugins
-src/commands/builtin/index.ts              内置命令注册入口（M2 占位，M4 填充）
+src/commands/builtin/index.ts              内置命令注册入口（导出 builtinPlugin）
+src/commands/builtin/echo.ts               首批核心命令 echo
+src/commands/builtin/help.ts               首批核心命令 help（从 ctx.commands 生成清单）
+src/commands/builtin/clear.ts              首批核心命令 clear（接管 M1 字符串特例）
+src/data/index.ts                           dataSource 出口（M2 占位，M7 替换为 StaticDataSource）
 src/stores/terminal.ts                     接入执行器：回显、输出、异常提示
 ```
 
@@ -208,8 +218,9 @@ src/stores/terminal.ts                     接入执行器：回显、输出、�
 
 - **解析规则**：空格分隔；单/双引号包裹保留内部空格；`-a` 短选项、`--name=value` 与 `--name value` 长选项、短选项合并 `-la` → `-l -a`；`--` 之后全部视为位置参数。
 - **注册策略**：命令名唯一；重复注册输出 `console.warn` 并保留先注册者（内置优先），策略见 D-02。
-- **上下文注入**：`cwd`、`env`、`dataSource`、`vfs`、`output`、`commands` 快照与 `setCwd` 由执行器统一构建；`vfs` 在 M2 通过装配参数注入（测试用桩），M3 起接入真实实现；命令不得直接访问 Store 或全局单例（见 D-01、第 6 节）。
+- **上下文注入**：`cwd`、`env`、`dataSource`、`output`、`commands` 快照与 `setCwd` 由执行器统一构建；`vfs`/`mounts` 自 M3 加入上下文（M2 不引入）；命令不得直接访问 Store 或全局单例（见 D-01、第 6 节）。
 - **错误兜底**：未知命令与未捕获异常均由执行器转成终端文本，不打断会话。
+- **clear 命令化**：M2 起 `clear` 由内置命令调用 `ctx.output.clear()` 完成清屏，Store 不再保留字符串特例；`clear` 出现在 `help` 清单中。
 
 **验收标准**：
 
@@ -218,7 +229,8 @@ src/stores/terminal.ts                     接入执行器：回显、输出、�
 - [ ] 重复注册同名命令时告警且保留先注册命令。
 - [ ] 未知命令输出 `xxx: 未找到命令，输入 help 查看可用命令` 一类提示，会话可继续输入。
 - [ ] 命令 `execute` 抛出的异常被捕获并展示为错误输出，不出现未处理 Promise rejection。
-- [ ] 解析器、注册表、执行器单测齐全；门禁通过。
+- [ ] `echo` 输出参数文本；`help` 从注册表列出 `echo`/`help`/`clear`；`clear` 经命令清屏且保留历史，`clear foo` 报错不清屏。
+- [ ] 解析器、注册表、执行器、上下文、首批命令单测齐全；门禁通过。
 
 **建议需求文档名**：`YYYYMMDD-01-命令解析与执行内核.md`
 
@@ -245,15 +257,15 @@ src/fs/build.ts                           新增：由普通对象描述构建�
 src/fs/__tests__/path.spec.ts
 src/fs/__tests__/vfs.spec.ts
 src/fs/__tests__/mount.spec.ts
-src/terminal/context/CommandContext.ts    扩展 vfs 字段（D-01）
+src/terminal/context/CommandContext.ts    扩展 vfs / mounts 字段（D-01）
 ```
 
 **关键技术点**：
 
 - **路径语义**：VFS 内部统一 POSIX 绝对路径，禁用反斜杠；`.`、`..`、重复斜杠、结尾斜杠均需规范化；越界 `..` 停留在根。
 - **只读**：一期 VFS 只读，命令层不提供写操作，避免引入权限模型。
-- **挂载**：`MountManager.mount(target, source, node)` 将子树挂到目标路径（如 `/mnt/blog`）；卸载后恢复原节点；节点 `parent` 指针由实现负责修正。
-- **初始树**：`/`、`/home/guest`、`/mnt` 存在；`/mnt` 初始为空目录，具体内容由 M7/M9 的内容清单生成。
+- **挂载**：核心 `MountApi` 提供 `mount(target, tree)`/`unmount(target)`/`list()`；子树挂到 `/mnt/**`（如 `/mnt/blog`），卸载后恢复原节点，节点 `parent` 指针由实现修正；目标不在白名单（`^/mnt(/[\w.-]+)+$`）内时拒绝并告警。
+- **初始树**：`/`、`/home/guest`、`/mnt` 存在；`/mnt` 初始为空目录，具体内容由 M6–M9 的插件在装配阶段通过 `api.mounts` 挂载。
 
 **验收标准**：
 
@@ -261,6 +273,7 @@ src/terminal/context/CommandContext.ts    扩展 vfs 字段（D-01）
 - [ ] `resolve('/mnt/../home/./guest')` 得到 `/home/guest`；`resolve('/../../x')` 得到 `/x`。
 - [ ] `readDir` 对不存在路径返回 `null`；`readFile` 对目录返回 `null`。
 - [ ] 挂载 `/mnt/blog` 后能读取其子节点，`unmount` 后该路径恢复为空目录。
+- [ ] `mount('/mnt/blog', tree)` 后子节点 `parent` 正确；目标不在 `/mnt/**` 白名单（如 `/home/guest`）时被拒绝并告警。
 - [ ] 路径/树/挂载单测覆盖异常输入（空串、`/`、多重斜杠、尾斜杠）。
 - [ ] 门禁通过。
 
@@ -268,125 +281,129 @@ src/terminal/context/CommandContext.ts    扩展 vfs 字段（D-01）
 
 ---
 
-### M4 内置命令集
+### M4 核心导航命令（history / pwd / cd）
 
-**目标**：终端具备完整的自我描述与导航能力，`help` 能自动反映注册表中的真实命令。
+**目标**：终端具备完整的自我导航能力：`pwd`/`cd`/`history` 基于核心 VFS 与会话状态工作，提示符、目录切换与历史浏览保持一致。
 
 **前置**：M3
 
 **范围**：
 
-- 包含：`echo`、`help`、`history`、`clear`、`pwd`、`cd`。
-- 不包含：`cd -`（上一次目录）、变量展开 `$HOME`、`echo -n`、命令别名。
+- 包含：`history`、`pwd`、`cd`、`help` 排版打磨（`echo`/`help`/`clear` 已在 M2 落地）。
+- 不包含：`cd -`（上一次目录）、变量展开 `$HOME`、命令别名、`ls`/`cat`（M5 核心命令）。
 
 **交付物**：
 
 ```
-src/commands/builtin/echo.ts
-src/commands/builtin/help.ts
 src/commands/builtin/history.ts
-src/commands/builtin/clear.ts
 src/commands/builtin/pwd.ts
 src/commands/builtin/cd.ts
-src/commands/builtin/index.ts              汇总导出 Command[]
-src/commands/builtin/__tests__/*.spec.ts   每个命令至少 1 正常 + 1 异常用例
+src/commands/builtin/help.ts                补充多列对齐与 help <命令> 排版（M2 已有最小实现）
+src/commands/builtin/index.ts               汇总导出（含 M2 的 echo/help/clear）
+src/commands/builtin/__tests__/*.spec.ts    每个命令至少 1 正常 + 1 异常用例
 ```
 
 **关键技术点**：
 
-- **help 数据来源**：从执行器注入的 `commands` 快照生成清单，`help <命令>` 展示 `usage` 与 `description`，禁止硬编码命令列表。
-- **cd 语义**：无参数回到 `~`；支持绝对/相对路径、`~`、`.`、`..`；目标是文件时报「不是目录」；成功时静默。
+- **help**：M2 已从 `ctx.commands` 生成清单；M4 补充多列对齐与 `help <命令>` 排版，仍禁止硬编码命令列表。
+- **cd 语义**：无参数回到 `~`；支持绝对/相对路径、`~`、`.`、`..`；目标是文件时报「不是目录」；成功时静默；通过 `ctx.setCwd` 更新会话目录。
 - **错误文案**：统一 `命令名: 中文描述`，如 `cd: 目录不存在: /mnt/xxx`。
-- **接管清屏**：`clear` 由本里程碑的内置命令接管，移除 M1 的临时硬编码入口。
+- **clear 回归**：`clear` 已在 M2 命令化（`ctx.output.clear()`），本里程碑只做回归验证。
 - **history**：带行号输出；上限与 Store 保持一致（建议 1000 条，见 D-08）。
 
 **验收标准**：
 
-- [ ] `echo hello world` 原样输出空格分隔内容；带引号的参数保持整体。
 - [ ] `pwd` 输出当前虚拟目录；`cd /mnt` 后提示符路径段与 `pwd` 同步变化，`cd ~` 回到 `/home/guest`。
 - [ ] `cd /mnt/nope` 输出错误且 `cwd` 不变；`cd` 指向文件时提示不是目录。
 - [ ] `history` 显示带序号的历史；`clear` 清空输出但保留历史。
 - [ ] `help` 列出全部已注册命令；`help cd` 展示用法；未知命令名给出提示。
 - [ ] 门禁通过。
 
-**建议需求文档名**：`YYYYMMDD-01-内置命令集.md`
+**建议需求文档名**：`YYYYMMDD-01-核心导航命令.md`
 
 ---
 
-### M5 目录插件（ls）
+### M5 核心文件浏览命令（ls / cat）
 
-**目标**：以插件形式提供 `ls`，证明插件化命令架构可用。
+**目标**：核心自带 `ls` 与 `cat`，在 M3 的 VFS 上完成目录浏览与文本读取；不依赖任何插件，安装插件前后行为一致。
 
 **前置**：M4
 
 **范围**：
 
-- 包含：`ls [选项] [路径...]`；`-a` 显示 `.`/`..` 与隐藏项；`-l` 长格式（类型+权限、大小、名称）；多路径；目录着色。
-- 不包含：`-R` 递归、`--color` 开关、权限位真实计算（只读树，统一 `drwxr-xr-x` / `-rw-r--r--`）、排序选项。
+- 包含：`ls [选项] [路径...]`（`-a` 显示 `.`/`..`、`-l` 长格式、多路径、目录着色）；`cat [-n] <文件...>`（多文件、行号、目录/不存在/二进制提示、末尾换行处理）。
+- 不包含：`ls -R` 递归、`--color` 开关、权限位真实计算（只读树统一 `drwxr-xr-x` / `-rw-r--r--`）、排序选项、分页（`less`/`more`）、语法高亮、写入操作。
 
 **交付物**：
 
 ```
-src/commands/plugins/filesystem/index.ts   CommandPlugin 导出
-src/commands/plugins/filesystem/ls.ts
-src/commands/plugins/filesystem/__tests__/ls.spec.ts
+src/commands/builtin/ls.ts
+src/commands/builtin/cat.ts
+src/commands/builtin/__tests__/ls.spec.ts
+src/commands/builtin/__tests__/cat.spec.ts
 src/terminal/components/TerminalOutput.vue 补充目录/文件链接样式（如需要）
 ```
 
 **关键技术点**：
 
-- **输出格式**：默认多列自适应（`flex-wrap`）；`-l` 每行一条；目录名追加 `/` 或使用强调色，二者取其一并在需求文档定稿。
+- **归属**：`ls`/`cat` 都在 `src/commands/builtin/`，不进入 `plugins/`；原 D-04（`cat` 归哪个插件）作废。
+- **输出格式**：`ls` 默认多列自适应（`flex-wrap`）；`-l` 每行一条；目录名追加 `/` 或使用强调色，二者取其一并在需求文档定稿。
 - **路径解析**：参数相对 `cwd` 解析后再交给 VFS；不存在路径按参数逐个报错，不影响其他参数。
-- **插件注册**：通过 `createCommandRuntime()` 统一装配，`ls` 不进入 `builtin` 目录。
+- **`cat` 细节**：二进制识别按扩展名/`meta.mime`，图片提示改用 `img`，其他二进制提示「无法以文本方式显示」；文件末尾无换行时补一次换行；单文件超过阈值（如 200KB）提示截断或拒绝（阈值需求文档定稿）。
 
 **验收标准**：
 
 - [ ] `ls` 列出当前目录，`ls /mnt/blog` 列出指定目录，`ls a b` 支持多路径并分行标注。
-- [ ] `ls -a` 显示 `.` 与 `..`（根目录不显示 `..`）；`ls -l` 输出类型、大小、名称。
-- [ ] 目录与文件在视觉上可区分；名称按升序排列。
-- [ ] 不存在路径输出 `ls: 无法访问 'xxx': 目录不存在`，其余参数继续输出。
-- [ ] 文件作为参数时直接输出文件名（遵循 `ls` 惯例）。
-- [ ] 单测覆盖 `-a`、`-l`、多路径、不存在路径；门禁通过。
+- [ ] `ls -a` 显示 `.` 与 `..`（根目录不显示 `..`）；`ls -l` 输出类型、大小、名称；目录与文件可区分；名称升序。
+- [ ] 不存在路径输出 `ls: 无法访问 'xxx': 目录不存在`，其余参数继续输出；文件参数直接输出文件名。
+- [ ] `cat /mnt/blog/hello.md` 原样输出原文，缩进与代码块保持不变；`cat -n` 输出行号。
+- [ ] 目录参数提示 `cat: xxx: 是一个目录`；不存在文件提示 `cat: xxx: 文件不存在`；图片提示改用 `img`。
+- [ ] 单测覆盖 `-a`、`-l`、多路径、不存在路径、`-n`、二进制识别；门禁通过。
 
-**建议需求文档名**：`YYYYMMDD-01-目录插件ls.md`
+**建议需求文档名**：`YYYYMMDD-01-核心文件浏览命令.md`
 
 ---
 
-### M6 文本插件（cat）
+### M6 内容挂载插件框架
 
-**目标**：在终端内读取并展示文本文件内容，为博客纯文本查看与 `cat` 用法打底。
+**目标**：把「插件挂载内容 + 扩展命令」做成核心可复用的装载机制：插件通过核心 `PluginApi`/`MountApi` 挂载内容树、注册命令；后续内容插件（M8/M9）无需改动核心即可接入。
 
-**前置**：M5
+**前置**：M3、M4
 
 **范围**：
 
-- 包含：`cat [-n] <文件...>`；多文件顺序输出；行号；目录/不存在/非文本文件的错误提示。
-- 不包含：分页（`less`/`more`）、语法高亮、写入操作。
+- 包含：`PluginApi`（registry/mounts/vfs/dataSource）、插件装载器（支持同步/异步 `install`、失败隔离、`runtime.ready` 门）、挂载点白名单与冲突策略、示例插件（挂载 `/mnt/demo`）、测试插件提供 `mount`/`unmount` 命令以验证运行时挂载能力。
+- 不包含：远程插件安装/卸载、插件沙箱、真实本地目录（File System Access API）、界面上的插件管理入口。
 
 **交付物**：
 
 ```
-src/commands/plugins/text/index.ts
-src/commands/plugins/text/cat.ts
-src/commands/plugins/text/__tests__/cat.spec.ts
+src/commands/plugins/example/index.ts      示例插件：install 时挂载 /mnt/demo
+src/commands/plugins/__tests__/loader.spec.ts   装载顺序、白名单、冲突、失败隔离、ready
+src/commands/plugins/__tests__/mount-cmd.spec.ts 测试插件：mount/unmount 命令
+src/commands/index.ts                      装配扩展：plugins 参数、await install、ready
+src/terminal/executor/CommandExecutor.ts   执行前 await runtime.ready
 ```
 
 **关键技术点**：
 
-- **归属**：`cat` 划入文本插件（而非目录插件），见 D-04；架构文档中「待定」的归属在 M6 定稿。
-- **二进制识别**：以扩展名/mime（`meta.mime`）判断；图片文件提示改用 `img`，其他二进制提示「无法以文本方式显示」。
-- **换行处理**：保留原文换行；文件末尾若无换行，输出后补一次换行，避免提示符粘连。
-- **大文件保护**：单文件超过阈值（如 200KB）提示截断或拒绝，防止输出区卡死（阈值在需求文档定稿）。
+- **插件契约**：`CommandPlugin` 增加 `install?(api: PluginApi)`，`commands` 改为可选；核心按顺序 `await install`，单个插件抛错记录 `console.error` 后跳过，不阻断其他插件与终端启动。
+- **挂载**：插件调用 `api.mounts.mount(target, tree)`；树由核心节点构造器/`build.ts` 生成；目标限 `/mnt/**`（至少一级子目录），`/`、`/home`、`/home/guest` 拒绝；同一目标重复挂载告警并保留先挂载者。
+- **命令侧挂载能力**：`CommandContext.mounts` 暴露 `MountApi`，插件命令可通过 `ctx.mounts` 在运行时挂载/卸载，并用 `ctx.output` 输出结果（`mount`/`unmount` 即插件命令示例，核心不内置）。
+- **就绪门**：`createCommandRuntime({ dataSource, plugins })` 返回 `ready`；执行器每次执行前 `await ready`，未来异步内容源不会出现「命令先于挂载」的竞态。
+- **能力边界**：插件不得 import Store 或运行时单例；只读 `vfs` 仅用于查询，修改一律走 `mounts`。
 
 **验收标准**：
 
-- [ ] `cat /mnt/blog/hello.md` 原样输出 Markdown 原文，缩进与代码块保持不变。
-- [ ] `cat -n` 输出行号，多文件连续编号或按文件重置（需求文档定稿）。
-- [ ] 目录参数提示 `cat: xxx: 是一个目录`；不存在文件提示 `cat: xxx: 文件不存在`。
-- [ ] 图片文件提示改用 `img` 查看。
+- [ ] 装配顺序为「核心命令 → 插件按序 install」；单插件抛错不影响其他插件与终端可用性。
+- [ ] 示例插件挂载 `/mnt/demo` 后，`ls /mnt/demo`、`cat /mnt/demo/<文件>` 可访问；`unmount` 后该路径恢复。
+- [ ] 非法挂载点（`/`、`/home/guest`、`/tmp/x`）被拒绝并告警。
+- [ ] 同一目标重复挂载告警且保留先挂载者。
+- [ ] 测试插件的 `mount`/`unmount` 命令可在运行时挂载/卸载并通过 `ctx.output` 输出结果。
+- [ ] `help` 自动包含插件命令；插件重名命令无法覆盖核心命令。
 - [ ] 门禁通过。
 
-**建议需求文档名**：`YYYYMMDD-01-文本插件cat.md`
+**建议需求文档名**：`YYYYMMDD-01-内容挂载插件框架.md`
 
 ---
 
@@ -398,7 +415,7 @@ src/commands/plugins/text/__tests__/cat.spec.ts
 
 **范围**：
 
-- 包含：`Article` 元数据清单、3 篇示例 Markdown 文章、`StaticDataSource` 实现、数据源单例、内容清单到 VFS 的投影函数。
+- 包含：`Article` 元数据清单、3 篇示例 Markdown 文章、`StaticDataSource` 实现、数据源单例（VFS 投影由 M8/M9 插件完成）。
 - 不包含：Markdown 渲染（M8）、后端 API、文章搜索、分页。
 
 **交付物**：
@@ -407,7 +424,6 @@ src/commands/plugins/text/__tests__/cat.spec.ts
 src/data/static/articles/*.md              3 篇中文示例（欢迎/关于/技术笔记）
 src/data/static/articles/index.ts          元数据清单（id/title/date/tags/excerpt）
 src/data/static/StaticDataSource.ts        fetchArticleList / fetchArticle
-src/data/static/vfs.ts                     内容清单 → VfsNode 子树（/mnt/blog，预留 /mnt/gallery）
 src/data/index.ts                          导出 dataSource 单例
 src/data/__tests__/StaticDataSource.spec.ts
 ```
@@ -418,7 +434,7 @@ src/data/__tests__/StaticDataSource.spec.ts
 - **正文加载**：`import.meta.glob('./articles/*.md', { query: '?raw', import: 'default', eager: true })`，构建期内联，无需运行时请求。
 - **一致性校验**：单测遍历元数据清单，确认每个 `id` 都能取到正文且文件存在，缺漏在测试期暴露。
 - **异步契约**：`StaticDataSource` 返回 `Promise`，模拟未来 API 的异步形态，替换 `ApiDataSource` 时命令层无感。
-- **单一数据源**：`cat` 看到的文章原文与 `blog read --raw` 来自同一份数据；VFS 投影由同一清单生成，不复制内容。
+- **单一数据源**：`cat` 看到的文章原文与 `blog read --raw` 来自同一份数据；M8 插件用同一清单投影 `/mnt/blog` 树，不复制内容。
 
 **验收标准**：
 
@@ -426,7 +442,7 @@ src/data/__tests__/StaticDataSource.spec.ts
 - [ ] `fetchArticle(id)` 返回完整正文；不存在返回 `null`。
 - [ ] 元数据与文章文件一一对应，单测全部通过。
 - [ ] 运行时装配使用 `dataSource` 单例，命令通过 `ctx.dataSource` 获取。
-- [ ] `/mnt/blog` 下可看到 `hello.md` 等文件（可在 M8 装配时验证）。
+- [ ] `/mnt/blog` 下可看到 `hello.md` 等文件（在 M8 插件挂载后验证）。
 - [ ] 门禁通过。
 
 **建议需求文档名**：`YYYYMMDD-01-静态数据源与文章内容.md`
@@ -441,7 +457,7 @@ src/data/__tests__/StaticDataSource.spec.ts
 
 **范围**：
 
-- 包含：`blog list`、`blog read <id>`、`blog read --raw <id>`、`blog tags`、`blog tag <tag>`；`markdown-it` 渲染与安全配置；Markdown 正文样式。
+- 包含：`blog list`、`blog read <id>`、`blog read --raw <id>`、`blog tags`、`blog tag <tag>`；`markdown-it` 渲染与安全配置；Markdown 正文样式；插件 `install` 时把文章清单投影挂载到 `/mnt/blog`。
 - 不包含：评论、搜索、分页、目录（TOC）交互、文章内图片点击放大、发布后台。
 
 **交付物**：
@@ -450,7 +466,8 @@ src/data/__tests__/StaticDataSource.spec.ts
 package.json                                   新增 markdown-it 与 @types/markdown-it
 src/markdown/render.ts                         渲染器单例（html:false / linkify / breaks）
 src/markdown/__tests__/render.spec.ts
-src/commands/plugins/blog/index.ts             CommandPlugin 导出
+src/commands/plugins/blog/index.ts             CommandPlugin 导出（install 挂载 /mnt/blog）
+src/commands/plugins/blog/tree.ts              文章清单 → VfsNode 子树（/mnt/blog/<id>.md）
 src/commands/plugins/blog/list.ts
 src/commands/plugins/blog/read.ts
 src/commands/plugins/blog/tags.ts
@@ -465,7 +482,7 @@ src/terminal/theme.css                         .md 正文样式（标题/代码/
 - **两种查看方式**：默认富文本（`output.writeHtml`）；`--raw` 走纯文本（复用 `cat` 的读取逻辑或直接输出 `article.content`）。
 - **列表格式**：`id`、日期、标题对齐展示；`blog tag <tag>` 复用列表格式并支持无结果提示。
 - **错误文案**：未知 `id` 提示 `blog: 文章不存在: xxx，输入 blog list 查看全部文章`。
-- **VFS 联动**：M7 的投影函数在运行时装配中挂载到 `/mnt/blog`，`/mnt/blog/<id>.md` 与博客数据同源，`cat` 可直接读原文。
+- **VFS 联动**：插件在 `install(api)` 时用 `api.mounts.mount('/mnt/blog', tree)` 挂载文章树（`tree` 由 `dataSource` 清单投影，文件名 `<id>.md`）；`blog` 命令与 `/mnt/blog` 树同源，`cat` 可直接读原文。
 
 **验收标准**：
 
@@ -489,7 +506,7 @@ src/terminal/theme.css                         .md 正文样式（标题/代码/
 
 **范围**：
 
-- 包含：`img <路径>`；png/jpg/jpeg/gif/webp/svg；示例画廊挂载 `/mnt/gallery`；图片自适应尺寸与说明文字。
+- 包含：`img <路径>`；png/jpg/jpeg/gif/webp/svg；插件 `install` 时挂载示例画廊到 `/mnt/gallery`；图片自适应尺寸与说明文字。
 - 不包含：上传、缩放交互、幻灯片、EXIF、视频/音频。
 
 **交付物**：
@@ -497,6 +514,7 @@ src/terminal/theme.css                         .md 正文样式（标题/代码/
 ```
 src/commands/plugins/image/index.ts
 src/commands/plugins/image/img.ts
+src/commands/plugins/image/tree.ts            画廊清单 → VfsNode 子树（/mnt/gallery，meta.src）
 src/commands/plugins/image/__tests__/img.spec.ts
 src/data/static/gallery/index.ts              图片清单（url/mime/alt/说明）
 src/data/static/gallery/*                     2 张示例图片
@@ -506,7 +524,7 @@ src/data/static/gallery/*                     2 张示例图片
 
 - **命令名**：`img`（D-07），语义明确、短、不与常见 Linux 命令冲突。
 - **渲染方式**：输出 `html` chunk，`<figure><img src alt loading="lazy"><figcaption>`；`max-width: 100%`，高度自适应，避免撑破终端布局。
-- **资源来源**：示例图片用 `import.meta.glob('./gallery/*', { eager: true, query: '?url', import: 'default' })` 获取构建后 URL；VFS 节点 `meta.src` 保存该 URL。
+- **资源来源**：示例图片用 `import.meta.glob('./gallery/*', { eager: true, query: '?url', import: 'default' })` 获取构建后 URL；VFS 节点 `meta.src` 保存该 URL；插件 `install(api)` 时用 `api.mounts.mount('/mnt/gallery', tree)` 挂载。
 - **格式校验**：按扩展名 + `meta.mime` 双重判断；非图片文件提示 `img: 不支持的图片格式: xxx`。
 
 **验收标准**：
@@ -574,12 +592,12 @@ docs/README.md                             索引补全
 | 架构文档章节 | 覆盖里程碑 | 说明 |
 | --- | --- | --- |
 | 第 3 节 目录结构 | M1–M9 | 按既定目录落位，M2 新增 `executor/`、M8 新增 `markdown/` |
-| 第 4 节 总体架构分层 | M1、M2、M7 | 展示层、命令执行层、数据层 |
-| 第 5 节 命令分类 | M4、M5、M6、M8、M9 | 内置命令与各插件命令 |
-| 第 6 节 插件化命令架构 | M2、M4–M9 | 契约与装配在 M2，命令实现分布在后序里程碑 |
-| 第 7 节 VFS 与挂载 | M3 | 节点、路径、挂载点 |
-| 第 8 节 博客集成方案 | M7、M8 | 数据与内容准备、渲染与浏览命令 |
-| 第 9 节 状态管理与数据流 | M1、M2、M4 | 会话 Store、执行链路接入、`cwd` 变更 |
+| 第 4 节 总体架构分层 | M1、M2、M3、M7 | 展示层、命令执行层、核心数据层 |
+| 第 5 节 命令分类 | M4、M5、M8、M9 | 核心命令与插件命令 |
+| 第 6 节 插件化命令架构 | M2、M6、M8、M9 | 契约与装载器在 M2/M6，插件挂载与命令在 M8/M9 |
+| 第 7 节 VFS 与挂载 | M3、M6 | 核心 VFS 与 `MountApi`，插件装载器与挂载策略 |
+| 第 8 节 博客集成方案 | M7、M8 | 数据与内容准备、插件挂载与渲染浏览 |
+| 第 9 节 状态管理与数据流 | M1、M2、M3、M4 | 会话 Store、执行链路、`cwd` 变更 |
 | 第 10 节 视觉与语言约定 | M1、M8、M10 | 主题、中文文案、Markdown 样式 |
 | 第 11 节 构建与部署 | M10 | 构建、静态托管 |
 | 第 12 节 约定与规范 | 全程 | 文档流程、需求/缺陷归档与索引 |
@@ -590,16 +608,19 @@ docs/README.md                             索引补全
 
 | 命令 | 类别 | 里程碑 | 说明 |
 | --- | --- | --- | --- |
-| `echo` | 内置 | M4 | 文本输出 |
-| `history` | 内置 | M4 | 历史列表（带序号） |
-| `help` | 内置 | M4 | 自动读取注册表生成清单 |
-| `clear` | 内置 | M4 | 清屏，保留历史 |
-| `pwd` | 内置 | M4 | 输出 `cwd` |
-| `cd` | 内置 | M4 | 基于 VFS 切换目录 |
-| `ls` | 外置（filesystem） | M5 | `-a`/`-l`，多路径 |
-| `cat` | 外置（text） | M6 | 纯文本读取，D-04 定稿归属 |
-| `blog` | 外置（blog） | M8 | `list`/`read`/`read --raw`/`tags`/`tag` |
-| `img` | 外置（image） | M9 | 架构中「图片查看命令」定名 `img`（D-07） |
+| `echo` | 核心 | M2 | 首批核心命令，输出参数文本 |
+| `history` | 核心 | M4 | 历史列表（带序号） |
+| `help` | 核心 | M2 | 从 `ctx.commands` 生成清单（M4 做排版打磨） |
+| `clear` | 核心 | M2 | 调用 `ctx.output.clear()`，保留历史 |
+| `pwd` | 核心 | M4 | 输出 `cwd` |
+| `cd` | 核心 | M4 | 基于 VFS 切换目录（`ctx.setCwd`） |
+| `ls` | 核心 | M5 | `-a`/`-l`，多路径 |
+| `cat` | 核心 | M5 | 文本读取；D-04 已作废 |
+| `blog` | 插件（blog） | M8 | `list`/`read`/`read --raw`/`tags`/`tag`；插件挂载 `/mnt/blog` |
+| `img` | 插件（image） | M9 | 插件挂载 `/mnt/gallery` |
+| `mount` / `unmount` | 插件能力 | M6 | 插件命令通过 `ctx.mounts` 提供，核心不内置；用于展示运行时挂载/卸载 |
+
+> 20261110 确认：VFS、路径、挂载与 `pwd`/`cd`/`ls`/`cat` 属核心（M3/M4/M5）；插件通过 `PluginApi` 挂载内容树并在 `install` 时注册命令，也可提供 `mount`/`unmount` 等挂载管理命令。
 
 ## 5. 待确认决策清单
 
@@ -610,7 +631,7 @@ docs/README.md                             索引补全
 | D-01 | `CommandContext` 如何获得 VFS、`cd` 写入与命令清单 | ① 扩展 Context（`vfs`/`setCwd`/`commands`）；② 命令直接 import 全局 Store/单例 | ①：保持命令无全局依赖，便于单测与替换 | M3、M4 |
 | D-02 | 命令名冲突策略 | ① 后注册覆盖；② 告警并保留先注册；③ 抛错 | ②：内置优先，插件冲突可见但不破坏启动 | M2 |
 | D-03 | 输出块类型是否够用 | ① 仅 `text`/`html`；② 增加 `error`（错误色）与 `system`（提示色） | ②：错误与系统提示需要独立样式；`html` 仅承载受控富文本 | M1、M2 |
-| D-04 | `cat` 归属插件 | ① 文本插件；② 目录插件 | ①：与文本处理职责一致，目录插件只负责列举 | M6 |
+| D-04 | `cat` 归属（已作废） | — | 20261110 确认：文件系统属核心，`cat` 归核心命令（M5） | M5 |
 | D-05 | 文章元数据来源 | ① frontmatter 解析；② 显式 `index.ts`；③ 文件名约定 | ②：零依赖、类型安全、构建期可校验 | M7 |
 | D-06 | Markdown 安全与渲染配置 | ① `html: false` + linkify；② 允许原始 HTML + DOMPurify | ①：内容由站主编写，无需 HTML 直通，减少依赖与 XSS 面 | M8 |
 | D-07 | 图片命令名 | `img` / `view` / `open` / `pic` | `img`：短、语义明确、无命名冲突 | M9 |
@@ -622,6 +643,8 @@ docs/README.md                             索引补全
 | D-13 | 是否引入 E2E 测试 | ① 一期不做，手工回归；② Playwright | ①：终端交互以组件测试 + 手工回归覆盖，控制依赖与工期 | M10 |
 
 > 20261109：D-03 已随 M1 需求 `20261109-01` 审核确认，输出块最终为 `text`/`html`/`system`/`error`/`command` 五型。
+>
+> 20261110：D-01（上下文扩展 `commands`/`setCwd`/`vfs`/`mounts`）、D-02（保留先注册 + 告警）已确认；D-04 作废（`cat` 属核心命令）；文件系统与插件边界确认：VFS/路径/挂载与常用命令属核心，插件通过 `PluginApi`/`MountApi` 挂载内容树并注册命令（可提供 `mount`/`unmount` 等挂载管理命令）。
 
 ## 6. 跨里程碑技术约定
 
@@ -632,7 +655,7 @@ docs/README.md                             索引补全
 3. **错误处理**：可预期的失败（文件不存在、参数非法）由命令自行输出错误并正常返回；未捕获异常由执行器兜底为「系统错误」，不中断会话。
 4. **错误文案**：统一 `命令名: 中文描述`；命令名与选项保持英文，面向访客的说明使用中文。
 5. **输出转义**：凡拼入 `html` chunk 的动态文本必须经 `escapeHtml`；Markdown 渲染遵循 D-06。
-6. **插件形态**：每个插件导出 `CommandPlugin`（`id` + `commands`），由 `src/commands/index.ts` 统一装配；不修改终端核心即可新增插件。
+6. **插件形态**：插件导出 `CommandPlugin`（`id` + 可选 `commands` + `install(api)`），装配时通过 `PluginApi` 获得 `registry`/`mounts`/`vfs`/`dataSource`，在 `install` 中挂载内容树并注册命令；插件命令可在运行时通过 `ctx.mounts` 提供 `mount`/`unmount` 等挂载管理能力，输出仍走 `ctx.output`。新增插件不修改终端核心。
 7. **命名**：命令名全小写单词（`ls`、`cat`、`img`），子命令用空格分隔（`blog read`）；文件名用 kebab-case。
 8. **测试**：纯逻辑模块（parser/registry/vfs/path/mount/datasource/markdown）独立单测；命令用伪造 Context 测试；组件用 `@vue/test-utils` + jsdom。
 9. **依赖**：新增运行时依赖必须在该里程碑需求文档中说明必要性、体积与替代方案。
@@ -667,6 +690,7 @@ docs/README.md                             索引补全
 - [ ] 冷启动：banner、提示符、聚焦均正常。
 - [ ] 基础命令：`help`、`echo`、`history`、`clear`、`pwd`、`cd`。
 - [ ] 文件浏览：`ls`、`ls -a`、`ls -l`、`cat`（含错误路径）。
+- [ ] 插件挂载：`ls /mnt/blog`、`ls /mnt/gallery` 可见；`cat /mnt/blog/<id>.md` 可读；`help` 含插件命令。
 - [ ] 博客：`blog list`、`blog read`、`blog read --raw`、`blog tags`、`blog tag`。
 - [ ] 图片：`img`（正常图片 + 非图片 + 不存在）。
 - [ ] 交互：历史上下键、Tab 补全、Ctrl+L、Ctrl+C、长输出滚动。
@@ -725,11 +749,11 @@ docs/README.md                             索引补全
 | --- | --- | --- | --- |
 | M0 架构与骨架 | 已完成 | `20261106-01-模拟终端网站整体架构设计.md` | 20261106 |
 | M1 终端外壳 | 已完成 | `20261109-01-终端外壳与交互骨架.md` | 20261109 |
-| M2 命令内核 | 待启动 | — | — |
+| M2 命令内核 | 已完成 | `20261110-01-命令解析与执行内核.md` | 20261110 |
 | M3 VFS 与挂载 | 待启动 | — | — |
-| M4 内置命令集 | 待启动 | — | — |
-| M5 目录插件 | 待启动 | — | — |
-| M6 文本插件 | 待启动 | — | — |
+| M4 核心导航命令 | 待启动 | — | — |
+| M5 核心文件浏览命令 | 待启动 | — | — |
+| M6 内容挂载插件框架 | 待启动 | — | — |
 | M7 数据层与静态文章 | 待启动 | — | — |
 | M8 博客插件 | 待启动 | — | — |
 | M9 图片插件 | 待启动 | — | — |
@@ -756,3 +780,7 @@ docs/README.md                             索引补全
 | 20261109 | 初稿：拆分 M0–M10 里程碑，补充决策清单、质量门禁、风险与需求模板 |
 | 20261109 | M1 终端外壳落地：完成终端组件/Store/五型 OutputChunk 与测试，D-03 确认；UI 待人工验收 |
 | 20261109 | M1 人工页面验收通过，状态更新为已完成；补充 GUI 前端人工审核规范（AGENTS 第三节、需求文档第 7 节） |
+| 20261110 | M2 需求文档 `20261110-01-命令解析与执行内核.md` 创建并提交审核（状态：待审核） |
+| 20261110 | 用户确认 M2 增加 `echo`/`help`/`clear` 三个核心命令（`clear` 提前接管）；确认文件系统归属：VFS/路径/挂载与 `pwd`/`cd`/`ls`/`cat` 属核心，插件通过核心接口挂载内容并可提供 `mount`/`unmount` 等命令；M4/M5/M6 相应重划 |
+| 20261110 | M2 实现完成：解析器/注册表/执行器/上下文/装配与 `echo`/`help`/`clear`；84 个单测与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工页面验收 |
+| 20261110 | M2 人工页面验收通过，状态更新为「已完成」（验收日期 20261110） |

@@ -8,8 +8,6 @@ export interface SiteConfig {
   messages: {
     /** 冷启动欢迎语，每条渲染为一个 system 输出块 */
     welcome: readonly string[]
-    /** 命令层尚未接入时的临时提示 */
-    commandUnavailable: string
   }
 }
 
@@ -20,8 +18,7 @@ export const siteConfig: SiteConfig = {
   messages: {
     welcome: [
       '欢迎来到 fun-terminal —— 一个以终端为入口的个人站点。',
-      '当前为终端外壳预览：支持命令回显、历史浏览与 clear 清屏。',
+      '输入 help 查看可用命令。',
     ],
-    commandUnavailable: '命令系统将在下一里程碑接入，当前仅支持 clear 清屏。',
   },
 }

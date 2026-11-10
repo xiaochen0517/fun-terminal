@@ -25,7 +25,7 @@ function focusInput() {
 }
 
 function onSubmit(raw: string) {
-  store.submit(raw)
+  void store.submit(raw) // 执行器内部已兜底，不产生未处理 rejection
   input.value = ''
   void nextTick(() => focusInput())
 }

@@ -1,9 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+import { commandRuntime } from '@/commands'
 import { siteConfig } from '@/config/site'
 import { createOutputBuffer } from '@/terminal/context/buffer'
 import type { OutputChunk } from '@/terminal/context/OutputBuffer'
+import { createCommandExecutor } from '@/terminal/executor/CommandExecutor'
+import { createCommandContextBuilder } from '@/terminal/executor/context'
+import { createCommandParser } from '@/terminal/parser/CommandParser'
 
 export const MAX_HISTORY = 1000
 
@@ -32,6 +36,21 @@ export const useTerminalStore = defineStore('terminal', () => {
     },
   })
 
+  const executor = createCommandExecutor({
+    registry: commandRuntime.registry,
+    parser: createCommandParser(),
+    output: outputBuffer,
+    buildContext: createCommandContextBuilder({
+      getCwd: () => cwd.value,
+      getEnv: () => env.value,
+      setCwd(next) {
+        cwd.value = next
+      },
+      getCommands: () => commandRuntime.commands,
+      dataSource: commandRuntime.deps.dataSource,
+    }),
+  })
+
   function recordHistory(command: string) {
     if (history.value[history.value.length - 1] === command) return
     history.value.push(command)
@@ -40,22 +59,13 @@ export const useTerminalStore = defineStore('terminal', () => {
     }
   }
 
-  function submit(raw: string) {
+  async function submit(raw: string): Promise<void> {
     const command = raw.trim()
     if (!command) return
 
     recordHistory(command)
-
-    if (command === 'clear') {
-      outputBuffer.clear()
-      return
-    }
-
     outputBuffer.push({ type: 'command', cwd: cwd.value, input: command })
-    outputBuffer.push({
-      type: 'system',
-      content: siteConfig.messages.commandUnavailable,
-    })
+    await executor.execute(command)
   }
 
   function clearOutput() {

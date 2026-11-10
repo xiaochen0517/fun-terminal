@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-import { siteConfig } from '@/config/site'
 import Terminal from '@/terminal/components/Terminal.vue'
 import { useTerminalStore } from '@/stores/terminal'
 
@@ -37,6 +36,7 @@ describe('Terminal', () => {
   async function submit(value: string) {
     await input().setValue(value)
     await input().trigger('keydown', { key: 'Enter' })
+    await flushPromises()
     await nextTick()
   }
 
@@ -66,14 +66,25 @@ describe('Terminal', () => {
     expect(wrapper.get('.terminal-input__mirror').element.textContent).toBe('hello ')
   })
 
-  it('echoes a submitted command and shows the temporary notice', async () => {
-    await submit('hello world')
+  it('echoes a submitted command and renders its output', async () => {
+    await submit('echo hello world')
 
-    expect(store.history).toEqual(['hello world'])
-    expect(wrapper.text()).toContain('hello world')
-    expect(wrapper.text()).toContain(siteConfig.messages.commandUnavailable)
+    expect(store.history).toEqual(['echo hello world'])
     expect(wrapper.findAll('.terminal-chunk--command')).toHaveLength(1)
+    expect(wrapper.findAll('.terminal-chunk--text')).toHaveLength(1)
+    expect(wrapper.text()).toContain('hello world')
     expect(inputValue()).toBe('')
+  })
+
+  it('renders an error for unknown commands and keeps the session usable', async () => {
+    await submit('nope')
+
+    expect(wrapper.text()).toContain('nope: 未找到命令')
+    expect(wrapper.findAll('.terminal-chunk--error')).toHaveLength(1)
+
+    await submit('echo still works')
+
+    expect(wrapper.text()).toContain('still works')
   })
 
   it('normalizes pasted line breaks to spaces', async () => {
@@ -113,12 +124,12 @@ describe('Terminal', () => {
   })
 
   it('preserves a typed draft while browsing history', async () => {
-    await submit('one')
+    await submit('echo one')
     await input().setValue('draft')
 
     await input().trigger('keydown', { key: 'ArrowUp' })
     await nextTick()
-    expect(inputValue()).toBe('one')
+    expect(inputValue()).toBe('echo one')
 
     await input().trigger('keydown', { key: 'ArrowDown' })
     await nextTick()
@@ -126,11 +137,11 @@ describe('Terminal', () => {
   })
 
   it('clears output with clear but keeps history', async () => {
-    await submit('one')
+    await submit('echo one')
     await submit('clear')
 
     expect(store.chunks).toEqual([])
-    expect(store.history).toEqual(['one', 'clear'])
+    expect(store.history).toEqual(['echo one', 'clear'])
     expect(wrapper.findAll('.terminal-chunk')).toHaveLength(0)
   })
 })

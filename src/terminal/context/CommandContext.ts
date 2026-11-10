@@ -1,7 +1,7 @@
 /**
  * 命令契约定义（核心接口）
  *
- * 所有命令（内置命令与业务插件命令）均需遵循本文件定义的接口，
+ * 所有命令（核心命令与插件命令）均需遵循本文件定义的接口，
  * 保证命令与终端 UI、解析器、数据层的解耦。
  *
  * 本文件仅定义类型与接口，不包含任何实现逻辑。
@@ -24,6 +24,10 @@ export interface CommandContext {
   dataSource: DataSource
   /** 输出缓冲，命令通过它向终端写内容 */
   output: OutputBuffer
+  /** 已注册命令快照（按注册顺序），供 help 等命令生成清单 */
+  commands: readonly Command[]
+  /** 切换当前虚拟目录（cd 使用）；仅修改会话 cwd，路径校验由命令 / VFS 负责 */
+  setCwd(next: string): void
 }
 
 /** 命令接口：所有命令需实现的统一契约 */
