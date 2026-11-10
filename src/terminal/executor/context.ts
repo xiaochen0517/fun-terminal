@@ -22,6 +22,8 @@ export interface CommandSessionAccess {
   setCwd(next: string): void
   /** 已注册命令快照（help 使用） */
   getCommands(): readonly Command[]
+  /** 会话历史快照（history 使用）；返回 Store 当前数组，构建器负责拷贝 */
+  getHistory(): readonly string[]
   /** 数据访问抽象（M2 为占位实现，M7 替换） */
   dataSource: DataSource
   /** 只读 VFS（应用级共享实例） */
@@ -48,6 +50,7 @@ export function createCommandContextBuilder(
     dataSource: access.dataSource,
     output,
     commands: access.getCommands(),
+    history: [...access.getHistory()],
     setCwd: (next) => access.setCwd(next),
     vfs: access.vfs,
     mounts: access.mounts,

@@ -49,6 +49,7 @@ function createAccess(
     getEnv: () => ({ USER: 'guest' }),
     setCwd: () => {},
     getCommands: () => [],
+    getHistory: () => [],
     dataSource,
     vfs: fileSystem.vfs,
     mounts: fileSystem.mounts,
@@ -145,5 +146,36 @@ describe('createCommandContextBuilder', () => {
     expect(context.vfs.readDir('/mnt')?.map((entry) => entry.name)).toEqual(['blog'])
     expect(context.vfs.readFile('/mnt/blog/hello.md')).toBe('# 你好')
     expect(context.mounts.list().map((point) => point.target)).toEqual(['/mnt/blog'])
+  })
+
+  it('copies the history snapshot so commands cannot mutate the session', () => {
+    const history = ['pwd', 'cd /mnt']
+    const builder = createCommandContextBuilder(
+      createAccess({ getHistory: () => history }),
+    )
+
+    const context = builder({ name: 'history', args: [], options: {} }, createOutput())
+
+    expect(context.history).not.toBe(history)
+
+    history.push('后续命令')
+    expect(context.history).toEqual(['pwd', 'cd /mnt'])
+
+    ;(context.history as string[]).push('注入')
+    expect(history).toEqual(['pwd', 'cd /mnt', '后续命令'])
+  })
+
+  it('reads the latest history on every build', () => {
+    let history: string[] = ['pwd']
+    const builder = createCommandContextBuilder(
+      createAccess({ getHistory: () => history }),
+    )
+
+    const first = builder({ name: 'history', args: [], options: {} }, createOutput())
+    expect(first.history).toEqual(['pwd'])
+
+    history = ['pwd', 'cd /mnt']
+    const second = builder({ name: 'history', args: [], options: {} }, createOutput())
+    expect(second.history).toEqual(['pwd', 'cd /mnt'])
   })
 })

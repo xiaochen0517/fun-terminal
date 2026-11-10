@@ -41,6 +41,7 @@ export function createTestContext(
     dataSource: testDataSource,
     output,
     commands: [],
+    history: [],
     setCwd: vi.fn<(next: string) => void>(),
     vfs,
     mounts,

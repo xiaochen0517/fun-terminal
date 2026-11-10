@@ -9,8 +9,13 @@ function createCommand(name: string, description: string, usage?: string): Comma
   return { name, description, usage, execute() {} }
 }
 
+function textOf(chunks: ReturnType<typeof createTestContext>['chunks']): string {
+  const chunk = chunks[0]
+  return chunk?.type === 'text' ? chunk.content : ''
+}
+
 describe('help 命令', () => {
-  it('lists every registered command sorted by name', () => {
+  it('按名称升序列出全部命令，带表头与页脚', () => {
     const commands = [
       createCommand('help', '查看可用命令', 'help [命令]'),
       createCommand('echo', '输出传入的文本', 'echo <文本...>'),
@@ -21,37 +26,67 @@ describe('help 命令', () => {
     helpCommand.execute(context)
 
     expect(chunks).toHaveLength(1)
-    const content = chunks[0]?.type === 'text' ? chunks[0].content : ''
-    const lines = content.split('\n')
-    expect(lines).toHaveLength(3)
-    expect(lines[0]).toContain('clear')
-    expect(lines[1]).toContain('echo')
-    expect(lines[2]).toContain('help')
-    expect(content).toContain('输出传入的文本')
+    expect(textOf(chunks).split('\n')).toEqual([
+      '可用命令（共 3 条）：',
+      '',
+      '  clear  清空终端输出',
+      '  echo   输出传入的文本',
+      '  help   查看可用命令',
+      '',
+      '输入 help <命令> 查看具体用法。',
+    ])
   })
 
-  it('shows usage and description for a single command', () => {
+  it('命令名列宽按最长名称对齐', () => {
+    const commands = [
+      createCommand('ls', '列出目录'),
+      createCommand('cat', '读取文件'),
+    ]
+    const { context, chunks } = createTestContext({ commands })
+
+    helpCommand.execute(context)
+
+    const lines = textOf(chunks).split('\n')
+    expect(lines[2]).toBe('  cat  读取文件')
+    expect(lines[3]).toBe('  ls   列出目录')
+  })
+
+  it('空命令列表只有表头与页脚', () => {
+    const { context, chunks } = createTestContext({ commands: [] })
+
+    helpCommand.execute(context)
+
+    expect(textOf(chunks).split('\n')).toEqual([
+      '可用命令（共 0 条）：',
+      '',
+      '',
+      '输入 help <命令> 查看具体用法。',
+    ])
+  })
+
+  it('展示单个命令的说明与用法', () => {
     const commands = [createCommand('echo', '输出传入的文本', 'echo <文本...>')]
     const { context, chunks } = createTestContext({ args: ['echo'], commands })
 
     helpCommand.execute(context)
 
-    const content = chunks[0]?.type === 'text' ? chunks[0].content : ''
-    expect(content).toContain('echo - 输出传入的文本')
-    expect(content).toContain('用法: echo <文本...>')
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toEqual({
+      type: 'text',
+      content: 'echo - 输出传入的文本\n用法: echo <文本...>',
+    })
   })
 
-  it('falls back to the command name when usage is absent', () => {
+  it('usage 缺省时回退为命令名', () => {
     const commands = [createCommand('clear', '清空终端输出')]
     const { context, chunks } = createTestContext({ args: ['clear'], commands })
 
     helpCommand.execute(context)
 
-    const content = chunks[0]?.type === 'text' ? chunks[0].content : ''
-    expect(content).toContain('用法: clear')
+    expect(textOf(chunks)).toContain('用法: clear')
   })
 
-  it('reports unknown commands', () => {
+  it('未知命令给出错误与提示', () => {
     const { context, chunks } = createTestContext({
       args: ['nope'],
       commands: [createCommand('echo', '输出文本')],
@@ -59,18 +94,45 @@ describe('help 命令', () => {
 
     helpCommand.execute(context)
 
-    expect(chunks).toEqual([{ type: 'error', content: 'help: 未找到命令: nope' }])
+    expect(chunks).toEqual([
+      {
+        type: 'error',
+        content: 'help: 未找到命令: nope，输入 help 查看全部命令',
+      },
+    ])
   })
 
-  it('derives the list from ctx.commands instead of a hardcoded list', () => {
+  it('参数过多时报错', () => {
+    const { context, chunks } = createTestContext({
+      args: ['echo', 'pwd'],
+      commands: [createCommand('echo', '输出文本')],
+    })
+
+    helpCommand.execute(context)
+
+    expect(chunks).toEqual([
+      { type: 'error', content: 'help: 参数过多（一次只能查询一个命令）' },
+    ])
+  })
+
+  it('拒绝选项', () => {
+    const { context, chunks } = createTestContext({ options: { '--all': true } })
+
+    helpCommand.execute(context)
+
+    expect(chunks).toEqual([{ type: 'error', content: 'help: 不支持的选项: --all' }])
+  })
+
+  it('清单来自 ctx.commands 而非硬编码', () => {
     const { context, chunks } = createTestContext({
       commands: [createCommand('brand-new', '新注册命令')],
     })
 
     helpCommand.execute(context)
 
-    const content = chunks[0]?.type === 'text' ? chunks[0].content : ''
+    const content = textOf(chunks)
     expect(content).toContain('brand-new')
     expect(content).toContain('新注册命令')
+    expect(content).toContain('共 1 条')
   })
 })

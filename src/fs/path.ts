@@ -11,9 +11,9 @@
  * - 大小写不转换；`~` 不展开（由命令层基于 home 目录负责）。
  */
 
-/** 是否以 `/` 开头 */
+/** 是否以 `/` 开头（反斜杠前缀按 Windows 习惯同样视为绝对路径） */
 export function isAbsolute(path: string): boolean {
-  return path.startsWith('/')
+  return path.startsWith('/') || path.startsWith('\\')
 }
 
 /** 规范化为绝对路径 */

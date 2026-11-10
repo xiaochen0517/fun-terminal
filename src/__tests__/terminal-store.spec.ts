@@ -104,4 +104,71 @@ describe('useTerminalStore', () => {
     expect(store.chunks).toHaveLength(2)
     expect(store.chunks[1]).toEqual({ type: 'error', content: 'clear: 不接受参数' })
   })
+
+  it('navigates with cd and keeps pwd and the echo prompt in sync', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('cd /mnt')
+
+    expect(store.cwd).toBe('/mnt')
+    expect(store.chunks).toEqual([
+      { type: 'command', cwd: siteConfig.homeDir, input: 'cd /mnt' },
+    ])
+
+    await store.submit('pwd')
+
+    expect(store.chunks[1]).toMatchObject({ type: 'command', cwd: '/mnt', input: 'pwd' })
+    expect(store.chunks[2]).toEqual({ type: 'text', content: '/mnt' })
+  })
+
+  it('reports cd errors and keeps the session directory', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('cd nope')
+
+    expect(store.cwd).toBe(siteConfig.homeDir)
+    expect(store.chunks[1]).toEqual({
+      type: 'error',
+      content: 'cd: 目录不存在: nope',
+    })
+  })
+
+  it('lists the history including the history command itself', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('pwd')
+    await store.submit('history')
+
+    const chunk = store.chunks[store.chunks.length - 1]
+    expect(chunk?.type === 'text' ? chunk.content : '').toBe('   1  pwd\n   2  history')
+  })
+
+  it('deduplicates adjacent commands in the history output', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('pwd')
+    await store.submit('pwd')
+    await store.submit('history')
+
+    const chunk = store.chunks[store.chunks.length - 1]
+    expect(chunk?.type === 'text' ? chunk.content : '').toBe('   1  pwd\n   2  history')
+  })
+
+  it('help lists every core command', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('help')
+
+    const chunk = store.chunks[store.chunks.length - 1]
+    const content = chunk?.type === 'text' ? chunk.content : ''
+    expect(content).toContain('共 6 条')
+    for (const name of ['cd', 'clear', 'echo', 'help', 'history', 'pwd']) {
+      expect(content).toContain(`  ${name}`)
+    }
+  })
 })

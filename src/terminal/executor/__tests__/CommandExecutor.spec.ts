@@ -53,6 +53,7 @@ function createHarness(commands: Command[]) {
       getEnv: () => ({ USER: 'guest', HOME: '/home/guest' }),
       setCwd: () => {},
       getCommands: () => registry.all(),
+      getHistory: () => [],
       dataSource,
       vfs,
       mounts,
@@ -214,6 +215,7 @@ describe('createCommandExecutor', () => {
           cwd = next
         },
         getCommands: () => registry.all(),
+        getHistory: () => [],
         dataSource,
         vfs,
         mounts,

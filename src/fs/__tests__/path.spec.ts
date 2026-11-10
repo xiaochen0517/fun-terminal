@@ -9,6 +9,12 @@ describe('isAbsolute', () => {
     expect(isAbsolute('mnt')).toBe(false)
     expect(isAbsolute('')).toBe(false)
   })
+
+  it('treats a backslash prefix as absolute (Windows input habit)', () => {
+    expect(isAbsolute('\\mnt')).toBe(true)
+    expect(isAbsolute('\\')).toBe(true)
+    expect(isAbsolute('mnt\\blog')).toBe(false)
+  })
 })
 
 describe('normalize', () => {
@@ -102,6 +108,11 @@ describe('resolve', () => {
 
   it('normalizes backslashes in the target', () => {
     expect(resolve('/home/guest', 'docs\\notes.md')).toBe('/home/guest/docs/notes.md')
+  })
+
+  it('resolves a backslash-prefixed target as an absolute path', () => {
+    expect(resolve('/home/guest', '\\mnt')).toBe('/mnt')
+    expect(resolve('/home/guest', '\\home\\guest')).toBe('/home/guest')
   })
 })
 

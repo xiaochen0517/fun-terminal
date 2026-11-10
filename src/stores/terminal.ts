@@ -47,6 +47,7 @@ export const useTerminalStore = defineStore('terminal', () => {
         cwd.value = next
       },
       getCommands: () => commandRuntime.commands,
+      getHistory: () => history.value,
       dataSource: commandRuntime.deps.dataSource,
       vfs: commandRuntime.deps.vfs,
       mounts: commandRuntime.deps.mounts,

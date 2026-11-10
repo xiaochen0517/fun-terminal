@@ -28,6 +28,11 @@ export interface CommandContext {
   output: OutputBuffer
   /** 已注册命令快照（按注册顺序），供 help 等命令生成清单 */
   commands: readonly Command[]
+  /**
+   * 会话命令历史快照（含当前这条命令本身），按提交顺序。
+   * 与 ↑/↓ 浏览、Store 存储的是同一份数据，命令不可通过它改写会话。
+   */
+  history: readonly string[]
   /** 切换当前虚拟目录（cd 使用）；仅修改会话 cwd，路径校验由命令 / VFS 负责 */
   setCwd(next: string): void
   /** 只读虚拟文件系统：命令查询目录/文件的唯一入口 */

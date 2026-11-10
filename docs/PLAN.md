@@ -297,6 +297,8 @@ src/stores/terminal.ts                    构建上下文时透传 vfs / mounts
 
 **目标**：终端具备完整的自我导航能力：`pwd`/`cd`/`history` 基于核心 VFS 与会话状态工作，提示符、目录切换与历史浏览保持一致。
 
+**状态**：已完成（20261110 人工页面验收通过；需求文档 `20261110-03-核心导航命令.md`；20 个测试文件 / 220 个用例）。
+
 **前置**：M3
 
 **范围**：
@@ -310,18 +312,23 @@ src/stores/terminal.ts                    构建上下文时透传 vfs / mounts
 src/commands/builtin/history.ts
 src/commands/builtin/pwd.ts
 src/commands/builtin/cd.ts
-src/commands/builtin/help.ts                补充多列对齐与 help <命令> 排版（M2 已有最小实现）
+src/commands/builtin/help.ts                补充两列对齐、表头/页脚与 help <命令> 排版（M2 已有最小实现）
 src/commands/builtin/index.ts               汇总导出（含 M2 的 echo/help/clear）
 src/commands/builtin/__tests__/*.spec.ts    每个命令至少 1 正常 + 1 异常用例
+src/terminal/context/CommandContext.ts      history 命令需要的历史快照字段（M2 未提供）
+src/terminal/executor/context.ts            CommandSessionAccess 增加 getHistory 并拷贝快照
+src/stores/terminal.ts                      buildContext 接入 getHistory
+src/fs/path.ts                              isAbsolute 接受 `\` 前缀，兑现反斜杠归一化意图
 ```
 
 **关键技术点**：
 
-- **help**：M2 已从 `ctx.commands` 生成清单；M4 补充多列对齐与 `help <命令>` 排版，仍禁止硬编码命令列表。
+- **help**：M2 已从 `ctx.commands` 生成清单；M4 补充两列对齐、表头/页脚与 `help <命令>` 排版，仍禁止硬编码命令列表。
 - **cd 语义**：无参数回到 `~`；支持绝对/相对路径、`~`、`.`、`..`；目标是文件时报「不是目录」；成功时静默；通过 `ctx.setCwd` 更新会话目录。
+- **history 契约**：`CommandContext` 新增 `history` 快照（命令不得直接读 Store），`CommandSessionAccess.getHistory` 由 Store 接线；快照避免命令改写会话历史。
 - **错误文案**：统一 `命令名: 中文描述`，如 `cd: 目录不存在: /mnt/xxx`。
 - **clear 回归**：`clear` 已在 M2 命令化（`ctx.output.clear()`），本里程碑只做回归验证。
-- **history**：带行号输出；上限与 Store 保持一致（建议 1000 条，见 D-08）。
+- **history 输出**：带行号输出；上限与 Store 保持一致（建议 1000 条，见 D-08）。
 
 **验收标准**：
 
@@ -662,7 +669,7 @@ docs/README.md                             索引补全
 
 以下约定建议在 M1 需求文档中一并冻结，后续里程碑沿用：
 
-1. **路径**：VFS 内部一律 POSIX 绝对路径；节点名不含 `\`、`/`；命令接收的相对路径先基于 `cwd` 解析，再交给 VFS；访客输入的反斜杠在 `src/fs/path.ts` 归一化为 `/`；`~` 由命令层展开。
+1. **路径**：VFS 内部一律 POSIX 绝对路径；节点名不含 `\`、`/`；命令接收的相对路径先基于 `cwd` 解析，再交给 VFS；访客输入的反斜杠在 `src/fs/path.ts` 归一化为 `/`（M4 起以 `\` 开头的路径按绝对路径解析）；`~` 由命令层展开。
 2. **命令职责**：命令只通过 `CommandContext` 取数据、写输出；不得直接 import Pinia Store、`window`、`fetch` 或静态文件。
 3. **错误处理**：可预期的失败（文件不存在、参数非法）由命令自行输出错误并正常返回；未捕获异常由执行器兜底为「系统错误」，不中断会话。
 4. **错误文案**：统一 `命令名: 中文描述`；命令名与选项保持英文，面向访客的说明使用中文。
@@ -763,7 +770,7 @@ docs/README.md                             索引补全
 | M1 终端外壳 | 已完成 | `20261109-01-终端外壳与交互骨架.md` | 20261109 |
 | M2 命令内核 | 已完成 | `20261110-01-命令解析与执行内核.md` | 20261110 |
 | M3 VFS 与挂载 | 已完成 | `20261110-02-虚拟文件系统与挂载.md` | 20261110 |
-| M4 核心导航命令 | 待启动 | — | — |
+| M4 核心导航命令 | 已完成 | `20261110-03-核心导航命令.md` | 20261110 |
 | M5 核心文件浏览命令 | 待启动 | — | — |
 | M6 内容挂载插件框架 | 待启动 | — | — |
 | M7 数据层与静态文章 | 待启动 | — | — |
@@ -800,3 +807,6 @@ docs/README.md                             索引补全
 | 20261110 | M3 需求审核通过，Q-01～Q-07 按建议执行（`MountApi` 定稿、`MountResult`、禁止嵌套、相对路径告警、仅人工回归、反斜杠归一化、Unicode 白名单） |
 | 20261110 | M3 实现完成：`fs/path.ts`、`fs/vfs.ts`（只读 `Vfs` + 内部 `MutableVfs`）、`fs/mount.ts`（`MountApi`）、`fs/build.ts`、`fs/index.ts`；`CommandContext` 新增必填 `vfs`/`mounts`，运行时与 Store 接线；17 个测试文件 / 168 个用例与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工回归确认 |
 | 20261110 | M3 人工回归确认通过（无可见退化），状态更新为「已完成」（验收日期 20261110）；下一里程碑为 M4 核心导航命令 |
+| 20261110 | M4 需求文档 `20261110-03-核心导航命令.md` 创建并提交审核（状态：待审核；含 Q-01～Q-08 待确认项）；M4 交付物补充 `CommandContext.history`、`getHistory` 接线与 `isAbsolute` 反斜杠修正 |
+| 20261110 | M4 需求审核通过（Q-01～Q-08 按建议执行）并完成实现：`pwd`/`cd`/`history`、`help` 排版打磨、`CommandContext.history` 契约与 `isAbsolute` 反斜杠修正；20 个测试文件 / 220 个用例与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工页面验收 |
+| 20261110 | M4 人工页面验收通过（按 2.3 脚本逐项确认，无退化），状态更新为「已完成」（验收日期 20261110）；下一里程碑为 M5 核心文件浏览命令（`ls`/`cat`） |
