@@ -240,6 +240,8 @@ src/stores/terminal.ts                     接入执行器：回显、输出、�
 
 **目标**：提供统一的虚拟目录树与路径语义，为 `cd`/`ls`/`cat`/`img` 提供唯一的数据访问入口。
 
+**状态**：已完成（20261110 人工回归确认通过；文档 `20261110-02-虚拟文件系统与挂载.md`）。
+
 **前置**：M2（VFS 纯逻辑可提前开发，契约扩展随 M2 落地）。
 
 **范围**：
@@ -250,21 +252,28 @@ src/stores/terminal.ts                     接入执行器：回显、输出、�
 **交付物**：
 
 ```
-src/fs/path.ts                            新增：normalize / resolve / join / isAbsolute 纯函数
-src/fs/vfs.ts                             实现 createVfs()、createDirectoryNode()、createFileNode()
-src/fs/mount.ts                           实现 createMountManager()
+src/fs/path.ts                            新增：normalize / resolve / join / dirname / basename / isAbsolute 纯函数
+src/fs/vfs.ts                             实现 createVfs()、createDirectoryNode()、createFileNode()、MutableVfs（核心内部 attach/detach）
+src/fs/mount.ts                           实现 createMountManager()（MountApi：MountResult / 禁止嵌套 / Unicode 白名单）
 src/fs/build.ts                           新增：由普通对象描述构建子树（静态内容复用）
+src/fs/index.ts                           新增：初始树 + createFileSystem() + fileSystem 单例
 src/fs/__tests__/path.spec.ts
 src/fs/__tests__/vfs.spec.ts
 src/fs/__tests__/mount.spec.ts
+src/fs/__tests__/build.spec.ts
+src/fs/__tests__/index.spec.ts
 src/terminal/context/CommandContext.ts    扩展 vfs / mounts 字段（D-01）
+src/terminal/executor/context.ts          会话访问器透传 vfs / mounts
+src/commands/index.ts                     CommandRuntimeDeps 注入 fileSystem
+src/stores/terminal.ts                    构建上下文时透传 vfs / mounts
 ```
 
 **关键技术点**：
 
-- **路径语义**：VFS 内部统一 POSIX 绝对路径，禁用反斜杠；`.`、`..`、重复斜杠、结尾斜杠均需规范化；越界 `..` 停留在根。
-- **只读**：一期 VFS 只读，命令层不提供写操作，避免引入权限模型。
-- **挂载**：核心 `MountApi` 提供 `mount(target, tree)`/`unmount(target)`/`list()`；子树挂到 `/mnt/**`（如 `/mnt/blog`），卸载后恢复原节点，节点 `parent` 指针由实现修正；目标不在白名单（`^/mnt(/[\w.-]+)+$`）内时拒绝并告警。
+- **路径语义**：VFS 内部统一 POSIX 绝对路径；`.`、`..`、重复斜杠、结尾斜杠均需规范化；越界 `..` 停留在根。输入侧反斜杠在 `path` 层归一化为 `/`，VFS 内部与节点名不含 `\`；`~` 不展开（由命令层负责）。
+- **只读与双契约**：一期 VFS 只读，命令与插件只拿到只读 `Vfs`；写能力收敛在核心内部 `MutableVfs`（`attachNode`/`detachNode`），仅挂载管理器可用，避免引入权限模型。
+- **挂载**：核心 `MountApi` 提供 `mount(target, tree)`/`unmount(target)`/`list()`；子树挂到 `/mnt/**`，卸载后恢复原节点，节点 `parent` 指针由实现修正；白名单为 `/mnt` 下至少一级子目录（段非空、不含 `/`，允许 Unicode），其他目标拒绝并告警。
+- **挂载失败可读**：`mount` 返回 `MountResult`（`invalid-target`/`parent-missing`/`invalid-tree`/`duplicate`/`nested`），`unmount` 返回 `boolean`，供 M6 的 `mount`/`unmount` 命令生成访客可见文案；一期禁止嵌套挂载。
 - **初始树**：`/`、`/home/guest`、`/mnt` 存在；`/mnt` 初始为空目录，具体内容由 M6–M9 的插件在装配阶段通过 `api.mounts` 挂载。
 
 **验收标准**：
@@ -273,8 +282,11 @@ src/terminal/context/CommandContext.ts    扩展 vfs / mounts 字段（D-01）
 - [ ] `resolve('/mnt/../home/./guest')` 得到 `/home/guest`；`resolve('/../../x')` 得到 `/x`。
 - [ ] `readDir` 对不存在路径返回 `null`；`readFile` 对目录返回 `null`。
 - [ ] 挂载 `/mnt/blog` 后能读取其子节点，`unmount` 后该路径恢复为空目录。
-- [ ] `mount('/mnt/blog', tree)` 后子节点 `parent` 正确；目标不在 `/mnt/**` 白名单（如 `/home/guest`）时被拒绝并告警。
-- [ ] 路径/树/挂载单测覆盖异常输入（空串、`/`、多重斜杠、尾斜杠）。
+- [ ] `mount('/mnt/blog', tree)` 后子节点 `parent` 正确；目标不在 `/mnt/**` 白名单（如 `/home/guest`）时被拒绝并告警（`invalid-target`）。
+- [ ] 重复挂载返回 `duplicate`、父子挂载返回 `nested`、父目录缺失返回 `parent-missing`；`/mnt/示例` 等 Unicode 目标允许。
+- [ ] `buildTree` 由普通对象生成只读子树（文件/目录/meta），非法节点名抛错。
+- [ ] `CommandContext.vfs` / `mounts` 必填并透传；`createFileSystem()` 实例之间挂载互不影响。
+- [ ] 路径/树/挂载/构建器单测覆盖异常输入（空串、`/`、多重斜杠、尾斜杠、`.`/`..`、非法节点名）。
 - [ ] 门禁通过。
 
 **建议需求文档名**：`YYYYMMDD-01-虚拟文件系统与挂载.md`
@@ -644,13 +656,13 @@ docs/README.md                             索引补全
 
 > 20261109：D-03 已随 M1 需求 `20261109-01` 审核确认，输出块最终为 `text`/`html`/`system`/`error`/`command` 五型。
 >
-> 20261110：D-01（上下文扩展 `commands`/`setCwd`/`vfs`/`mounts`）、D-02（保留先注册 + 告警）已确认；D-04 作废（`cat` 属核心命令）；文件系统与插件边界确认：VFS/路径/挂载与常用命令属核心，插件通过 `PluginApi`/`MountApi` 挂载内容树并注册命令（可提供 `mount`/`unmount` 等挂载管理命令）。
+> 20261110：D-01（上下文扩展 `commands`/`setCwd`/`vfs`/`mounts`）、D-02（保留先注册 + 告警）已确认；D-04 作废（`cat` 属核心命令）；文件系统与插件边界确认：VFS/路径/挂载与常用命令属核心，插件通过 `PluginApi`/`MountApi` 挂载内容树并注册命令（可提供 `mount`/`unmount` 等挂载管理命令）。M3 已按 D-01 落地 `vfs`/`mounts`（`MountApi` 返回 `MountResult`、一期禁止嵌套挂载、白名单允许 Unicode）。
 
 ## 6. 跨里程碑技术约定
 
 以下约定建议在 M1 需求文档中一并冻结，后续里程碑沿用：
 
-1. **路径**：VFS 内部一律 POSIX 绝对路径，禁用 `\`；命令接收的相对路径先基于 `cwd` 解析，再交给 VFS。
+1. **路径**：VFS 内部一律 POSIX 绝对路径；节点名不含 `\`、`/`；命令接收的相对路径先基于 `cwd` 解析，再交给 VFS；访客输入的反斜杠在 `src/fs/path.ts` 归一化为 `/`；`~` 由命令层展开。
 2. **命令职责**：命令只通过 `CommandContext` 取数据、写输出；不得直接 import Pinia Store、`window`、`fetch` 或静态文件。
 3. **错误处理**：可预期的失败（文件不存在、参数非法）由命令自行输出错误并正常返回；未捕获异常由执行器兜底为「系统错误」，不中断会话。
 4. **错误文案**：统一 `命令名: 中文描述`；命令名与选项保持英文，面向访客的说明使用中文。
@@ -750,7 +762,7 @@ docs/README.md                             索引补全
 | M0 架构与骨架 | 已完成 | `20261106-01-模拟终端网站整体架构设计.md` | 20261106 |
 | M1 终端外壳 | 已完成 | `20261109-01-终端外壳与交互骨架.md` | 20261109 |
 | M2 命令内核 | 已完成 | `20261110-01-命令解析与执行内核.md` | 20261110 |
-| M3 VFS 与挂载 | 待启动 | — | — |
+| M3 VFS 与挂载 | 已完成 | `20261110-02-虚拟文件系统与挂载.md` | 20261110 |
 | M4 核心导航命令 | 待启动 | — | — |
 | M5 核心文件浏览命令 | 待启动 | — | — |
 | M6 内容挂载插件框架 | 待启动 | — | — |
@@ -784,3 +796,7 @@ docs/README.md                             索引补全
 | 20261110 | 用户确认 M2 增加 `echo`/`help`/`clear` 三个核心命令（`clear` 提前接管）；确认文件系统归属：VFS/路径/挂载与 `pwd`/`cd`/`ls`/`cat` 属核心，插件通过核心接口挂载内容并可提供 `mount`/`unmount` 等命令；M4/M5/M6 相应重划 |
 | 20261110 | M2 实现完成：解析器/注册表/执行器/上下文/装配与 `echo`/`help`/`clear`；84 个单测与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工页面验收 |
 | 20261110 | M2 人工页面验收通过，状态更新为「已完成」（验收日期 20261110） |
+| 20261110 | M3 需求文档 `20261110-02-虚拟文件系统与挂载.md` 创建并提交审核（状态：待审核；含 Q-01～Q-07 待确认项） |
+| 20261110 | M3 需求审核通过，Q-01～Q-07 按建议执行（`MountApi` 定稿、`MountResult`、禁止嵌套、相对路径告警、仅人工回归、反斜杠归一化、Unicode 白名单） |
+| 20261110 | M3 实现完成：`fs/path.ts`、`fs/vfs.ts`（只读 `Vfs` + 内部 `MutableVfs`）、`fs/mount.ts`（`MountApi`）、`fs/build.ts`、`fs/index.ts`；`CommandContext` 新增必填 `vfs`/`mounts`，运行时与 Store 接线；17 个测试文件 / 168 个用例与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工回归确认 |
+| 20261110 | M3 人工回归确认通过（无可见退化），状态更新为「已完成」（验收日期 20261110）；下一里程碑为 M4 核心导航命令 |

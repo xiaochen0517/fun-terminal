@@ -48,6 +48,8 @@ export const useTerminalStore = defineStore('terminal', () => {
       },
       getCommands: () => commandRuntime.commands,
       dataSource: commandRuntime.deps.dataSource,
+      vfs: commandRuntime.deps.vfs,
+      mounts: commandRuntime.deps.mounts,
     }),
   })
 

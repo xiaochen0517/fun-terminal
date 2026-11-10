@@ -4,20 +4,30 @@
  * 按「核心命令 → 插件（按数组顺序）」装配命令注册表：
  * - 核心命令先注册，因此优先于插件命令（D-02）；
  * - 插件只通过 CommandPlugin 契约接入，新增插件不修改终端核心。
+ *
+ * 运行时同时持有应用级文件系统（VFS + 挂载管理），随上下文注入命令（M3）；
+ * 插件装载器与 PluginApi 在 M6 接入。
  */
 
 import type { CommandPlugin } from '@/commands/CommandPlugin'
 import { builtinPlugin } from '@/commands/builtin'
 import { dataSource } from '@/data'
 import type { DataSource } from '@/data/DataSource'
+import { fileSystem } from '@/fs'
+import type { MountApi } from '@/fs/mount'
+import type { Vfs } from '@/fs/vfs'
 import type { Command } from '@/terminal/context/CommandContext'
 import { createCommandRegistry } from '@/terminal/registry/CommandRegistry'
 import type { CommandRegistry } from '@/terminal/registry/CommandRegistry'
 
-/** 运行时依赖：随里程碑扩展（M6 增加插件挂载能力） */
+/** 运行时依赖：随里程碑扩展（M6 增加 plugins 与 ready） */
 export interface CommandRuntimeDeps {
   /** 数据访问抽象（M2 为占位实现，M7 替换为 StaticDataSource） */
   dataSource: DataSource
+  /** 只读虚拟文件系统 */
+  vfs: Vfs
+  /** 挂载管理（M6 交给 PluginApi） */
+  mounts: MountApi
 }
 
 /** 运行时实例 */
@@ -55,4 +65,8 @@ export function createCommandRuntime(deps: CommandRuntimeDeps): CommandRuntime {
 }
 
 /** 应用级单例 */
-export const commandRuntime: CommandRuntime = createCommandRuntime({ dataSource })
+export const commandRuntime: CommandRuntime = createCommandRuntime({
+  dataSource,
+  vfs: fileSystem.vfs,
+  mounts: fileSystem.mounts,
+})

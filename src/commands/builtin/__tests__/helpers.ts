@@ -1,6 +1,7 @@
 import { vi } from 'vitest'
 
 import type { DataSource } from '@/data/DataSource'
+import { createFileSystem } from '@/fs'
 import type { CommandContext } from '@/terminal/context/CommandContext'
 import { createOutputBuffer } from '@/terminal/context/buffer'
 import type { OutputChunk } from '@/terminal/context/OutputBuffer'
@@ -30,6 +31,7 @@ export function createTestContext(
       chunks.length = 0
     },
   })
+  const { vfs, mounts } = createFileSystem()
 
   const context: CommandContext = {
     args: [],
@@ -40,6 +42,8 @@ export function createTestContext(
     output,
     commands: [],
     setCwd: vi.fn<(next: string) => void>(),
+    vfs,
+    mounts,
     ...overrides,
   }
 

@@ -6,6 +6,8 @@
  */
 
 import type { DataSource } from '@/data/DataSource'
+import type { MountApi } from '@/fs/mount'
+import type { Vfs } from '@/fs/vfs'
 import type { Command, CommandContext } from '@/terminal/context/CommandContext'
 import type { OutputBuffer } from '@/terminal/context/OutputBuffer'
 import type { ParsedCommand } from '@/terminal/parser/CommandParser'
@@ -22,6 +24,10 @@ export interface CommandSessionAccess {
   getCommands(): readonly Command[]
   /** 数据访问抽象（M2 为占位实现，M7 替换） */
   dataSource: DataSource
+  /** 只读 VFS（应用级共享实例） */
+  vfs: Vfs
+  /** 挂载管理（应用级共享实例） */
+  mounts: MountApi
 }
 
 /** 上下文构建函数签名 */
@@ -43,5 +49,7 @@ export function createCommandContextBuilder(
     output,
     commands: access.getCommands(),
     setCwd: (next) => access.setCwd(next),
+    vfs: access.vfs,
+    mounts: access.mounts,
   })
 }

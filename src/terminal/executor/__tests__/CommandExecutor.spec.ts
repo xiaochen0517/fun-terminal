@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { DataSource } from '@/data/DataSource'
+import { createFileSystem } from '@/fs'
 import type { Command, CommandContext } from '@/terminal/context/CommandContext'
 import { createOutputBuffer } from '@/terminal/context/buffer'
 import type { OutputChunk } from '@/terminal/context/OutputBuffer'
@@ -42,6 +43,7 @@ function createHarness(commands: Command[]) {
   const registry = createCommandRegistry()
   registry.registerAll(commands)
   const { chunks, output } = createOutput()
+  const { vfs, mounts } = createFileSystem()
   const executor = createCommandExecutor({
     registry,
     parser: createCommandParser(),
@@ -52,6 +54,8 @@ function createHarness(commands: Command[]) {
       setCwd: () => {},
       getCommands: () => registry.all(),
       dataSource,
+      vfs,
+      mounts,
     }),
   })
   return { chunks, executor, registry }
@@ -198,6 +202,7 @@ describe('createCommandExecutor', () => {
       },
     })
     const { output } = createOutput()
+    const { vfs, mounts } = createFileSystem()
     const executor = createCommandExecutor({
       registry,
       parser: createCommandParser(),
@@ -210,6 +215,8 @@ describe('createCommandExecutor', () => {
         },
         getCommands: () => registry.all(),
         dataSource,
+        vfs,
+        mounts,
       }),
     })
 

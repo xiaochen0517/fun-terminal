@@ -8,6 +8,8 @@
  */
 
 import type { DataSource } from '@/data/DataSource'
+import type { MountApi } from '@/fs/mount'
+import type { Vfs } from '@/fs/vfs'
 import type { OutputBuffer } from '@/terminal/context/OutputBuffer'
 
 /** 命令执行上下文：执行命令时注入的运行时信息 */
@@ -28,6 +30,10 @@ export interface CommandContext {
   commands: readonly Command[]
   /** 切换当前虚拟目录（cd 使用）；仅修改会话 cwd，路径校验由命令 / VFS 负责 */
   setCwd(next: string): void
+  /** 只读虚拟文件系统：命令查询目录/文件的唯一入口 */
+  vfs: Vfs
+  /** 挂载管理：插件命令可在运行时挂载/卸载只读内容树 */
+  mounts: MountApi
 }
 
 /** 命令接口：所有命令需实现的统一契约 */
