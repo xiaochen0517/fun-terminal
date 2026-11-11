@@ -36,14 +36,14 @@ describe('useTerminalStore', () => {
     const store = useTerminalStore()
     store.clearOutput()
 
-    await store.submit('ls -la /mnt')
+    await store.submit('foo --bar')
 
-    expect(store.history).toEqual(['ls -la /mnt'])
+    expect(store.history).toEqual(['foo --bar'])
     expect(store.chunks).toHaveLength(2)
-    expect(store.chunks[0]).toMatchObject({ type: 'command', input: 'ls -la /mnt' })
+    expect(store.chunks[0]).toMatchObject({ type: 'command', input: 'foo --bar' })
     expect(store.chunks[1]).toMatchObject({ type: 'error' })
     const errorChunk = store.chunks[1]
-    expect(errorChunk?.type === 'error' ? errorChunk.content : '').toContain('ls: 未找到命令')
+    expect(errorChunk?.type === 'error' ? errorChunk.content : '').toContain('foo: 未找到命令')
   })
 
   it('ignores empty input', async () => {
@@ -166,9 +166,58 @@ describe('useTerminalStore', () => {
 
     const chunk = store.chunks[store.chunks.length - 1]
     const content = chunk?.type === 'text' ? chunk.content : ''
-    expect(content).toContain('共 6 条')
-    for (const name of ['cd', 'clear', 'echo', 'help', 'history', 'pwd']) {
+    expect(content).toContain('共 8 条')
+    for (const name of ['cat', 'cd', 'clear', 'echo', 'help', 'history', 'ls', 'pwd']) {
       expect(content).toContain(`  ${name}`)
     }
+  })
+
+  it('lists the home directory through ls', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('ls')
+
+    const chunk = store.chunks[store.chunks.length - 1]
+    expect(chunk).toEqual({ type: 'text', content: 'notes/\nREADME.md' })
+  })
+
+  it('reads text files through cat and keeps the content intact', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('cat README.md')
+
+    const chunk = store.chunks[store.chunks.length - 1]
+    const content = chunk?.type === 'text' ? chunk.content : ''
+    expect(content.startsWith('# fun-terminal\n')).toBe(true)
+    expect(content.endsWith('\n')).toBe(true)
+  })
+
+  it('numbers lines through cat -n', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('cat -n notes/welcome.txt')
+
+    const chunk = store.chunks[store.chunks.length - 1]
+    const content = chunk?.type === 'text' ? chunk.content : ''
+    expect(content.startsWith('     1\t这是 notes 目录下的示例文本文件。\n')).toBe(true)
+    expect(content).toContain('\n     2\t\n')
+  })
+
+  it('reports ls errors without breaking the session', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('ls nope')
+
+    expect(store.chunks).toEqual([
+      { type: 'command', cwd: siteConfig.homeDir, input: 'ls nope' },
+      { type: 'error', content: 'ls: 无法访问 nope: 目录不存在' },
+    ])
+
+    await store.submit('echo ok')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({ type: 'text', content: 'ok' })
   })
 })

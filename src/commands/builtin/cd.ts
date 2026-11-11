@@ -11,23 +11,7 @@
 import { resolve } from '@/fs/path'
 import type { Command, CommandContext } from '@/terminal/context/CommandContext'
 
-type ExpandResult = { ok: true; value: string } | { ok: false; message: string }
-
-/** 展开 home 前缀：仅支持 `~` 与 `~/...`；`~user` 明确不支持 */
-function expandHomeArgument(arg: string, env: Record<string, string>): ExpandResult {
-  if (arg !== '~' && !arg.startsWith('~/')) {
-    if (arg.startsWith('~')) {
-      return { ok: false, message: `cd: 不支持 ~user 形式: ${arg}` }
-    }
-    return { ok: true, value: arg }
-  }
-
-  const home = env.HOME
-  if (!home) {
-    return { ok: false, message: 'cd: 无法确定 home 目录（HOME 未设置）' }
-  }
-  return { ok: true, value: arg === '~' ? home : `${home}${arg.slice(1)}` }
-}
+import { expandHomeArgument } from './path-argument'
 
 function fail(ctx: CommandContext, message: string) {
   ctx.output.push({ type: 'error', content: message })
@@ -57,13 +41,13 @@ export const cdCommand: Command = {
       return
     }
 
-    const expanded = expandHomeArgument(argument, ctx.env)
+    const expanded = expandHomeArgument('cd', argument, ctx.env)
     if (!expanded.ok) {
       fail(ctx, expanded.message)
       return
     }
 
-    const target = resolve(ctx.cwd, expanded.value)
+    const target = resolve(ctx.cwd, expanded.target)
     const { node } = ctx.vfs.resolve(target)
 
     if (!node) {

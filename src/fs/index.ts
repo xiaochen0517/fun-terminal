@@ -2,7 +2,7 @@
  * 文件系统装配
  *
  * 组装应用级只读 VFS 与挂载管理器：
- * - 初始树包含 `/`、会话 home（默认 `/home/guest`）与空目录 `/mnt`；
+ * - 初始树包含 `/`、会话 home（默认 `/home/guest`，含只读示例文件）与空目录 `/mnt`；
  * - `/mnt` 的具体内容由插件在装配阶段通过 MountApi 挂载（M6/M8/M9）；
  * - 对外只暴露只读 `Vfs`，可变写入能力止步于本模块（`MutableVfs` 不外传）。
  *
@@ -11,6 +11,7 @@
  */
 
 import { siteConfig } from '@/config/site'
+import { createHomeContent } from '@/fs/home-content'
 import { createMountManager } from '@/fs/mount'
 import type { MountApi } from '@/fs/mount'
 import { normalize } from '@/fs/path'
@@ -42,7 +43,7 @@ export function createInitialTree(homeDir: string): VfsNode {
     throw new Error(`非法 home 目录: 不能位于 /mnt 下: ${homeDir}`)
   }
 
-  let home = createDirectoryNode(segments[segments.length - 1]!)
+  let home = createDirectoryNode(segments[segments.length - 1]!, createHomeContent())
   for (let index = segments.length - 2; index >= 0; index -= 1) {
     home = createDirectoryNode(segments[index]!, [home])
   }

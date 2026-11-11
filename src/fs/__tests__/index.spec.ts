@@ -27,6 +27,11 @@ describe('createInitialTree', () => {
     expect(home.parent).toBe(root)
     expect(guest.name).toBe('guest')
     expect(guest.parent).toBe(home)
+    expect(guest.children?.map((child) => child.name)).toEqual([
+      'README.md',
+      'notes',
+      '.profile',
+    ])
     expect(mnt.type).toBe('directory')
     expect(mnt.children).toEqual([])
     expect(mnt.parent).toBe(root)
@@ -36,7 +41,11 @@ describe('createInitialTree', () => {
     const root = createInitialTree('/root')
 
     expect(root.children?.map((child) => child.name)).toEqual(['root', 'mnt'])
-    expect(root.children?.[0]?.children).toEqual([])
+    expect(root.children?.[0]?.children?.map((child) => child.name)).toEqual([
+      'README.md',
+      'notes',
+      '.profile',
+    ])
   })
 
   it('normalizes the home path', () => {
@@ -58,13 +67,24 @@ describe('createFileSystem', () => {
 
     expect(vfs.resolve(siteConfig.homeDir).node?.type).toBe('directory')
     expect(vfs.readDir('/mnt')).toEqual([])
+    expect(vfs.readDir(siteConfig.homeDir)?.map((node) => node.name)).toEqual([
+      'README.md',
+      'notes',
+      '.profile',
+    ])
+    expect(vfs.readFile(`${siteConfig.homeDir}/README.md`)).toContain('# fun-terminal')
   })
 
-  it('accepts a custom home directory', () => {
+  it('accepts a custom home directory and seeds the same sample content', () => {
     const { vfs } = createFileSystem({ homeDir: '/home/tester' })
 
     expect(vfs.exists('/home/tester')).toBe(true)
     expect(vfs.exists('/home/guest')).toBe(false)
+    expect(vfs.readDir('/home/tester')?.map((node) => node.name)).toEqual([
+      'README.md',
+      'notes',
+      '.profile',
+    ])
   })
 
   it('exposes the mount api bound to the same tree', () => {
