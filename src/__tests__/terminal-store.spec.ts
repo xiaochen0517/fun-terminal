@@ -1,12 +1,21 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
+import { commandRuntime } from '@/commands'
+import { createDemoTree } from '@/commands/plugins/demo/tree'
 import { siteConfig } from '@/config/site'
 import { MAX_HISTORY, useTerminalStore } from '@/stores/terminal'
 
 describe('useTerminalStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+
+    // 应用级单例的 /mnt/demo 由示例插件在装配阶段挂载；这里只兜底
+    // 其他用例卸载后的状态，不提交命令、不污染历史。
+    const { mounts } = commandRuntime.deps
+    if (!mounts.list().some((point) => point.target === '/mnt/demo')) {
+      mounts.mount('/mnt/demo', createDemoTree())
+    }
   })
 
   it('seeds the welcome chunks', () => {
@@ -158,7 +167,7 @@ describe('useTerminalStore', () => {
     expect(chunk?.type === 'text' ? chunk.content : '').toBe('   1  pwd\n   2  history')
   })
 
-  it('help lists every core command', async () => {
+  it('help lists every registered command including plugin commands', async () => {
     const store = useTerminalStore()
     store.clearOutput()
 
@@ -166,8 +175,19 @@ describe('useTerminalStore', () => {
 
     const chunk = store.chunks[store.chunks.length - 1]
     const content = chunk?.type === 'text' ? chunk.content : ''
-    expect(content).toContain('共 8 条')
-    for (const name of ['cat', 'cd', 'clear', 'echo', 'help', 'history', 'ls', 'pwd']) {
+    expect(content).toContain('共 10 条')
+    for (const name of [
+      'cat',
+      'cd',
+      'clear',
+      'echo',
+      'help',
+      'history',
+      'ls',
+      'mount',
+      'pwd',
+      'unmount',
+    ]) {
       expect(content).toContain(`  ${name}`)
     }
   })
@@ -219,5 +239,89 @@ describe('useTerminalStore', () => {
 
     await store.submit('echo ok')
     expect(store.chunks[store.chunks.length - 1]).toEqual({ type: 'text', content: 'ok' })
+  })
+
+  it('lists and reads the demo content mounted by the plugin', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('ls /mnt')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: 'demo/',
+    })
+
+    await store.submit('ls /mnt/demo')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: 'docs/\nnotes.txt\nREADME.md',
+    })
+
+    await store.submit('cat -n /mnt/demo/notes.txt')
+    const chunk = store.chunks[store.chunks.length - 1]
+    const content = chunk?.type === 'text' ? chunk.content : ''
+    expect(content.startsWith('     1\t示例笔记：核心与插件的边界\n')).toBe(true)
+  })
+
+  it('lists mounts and can unmount and remount the demo content', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('mount')
+    const listed = store.chunks[store.chunks.length - 1]
+    expect(listed).toEqual({
+      type: 'text',
+      content: '已挂载的目录（1）：\n  /mnt/demo',
+    })
+
+    await store.submit('unmount /mnt/demo')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: '已卸载: /mnt/demo',
+    })
+
+    await store.submit('ls /mnt')
+    expect(store.chunks[store.chunks.length - 1]?.type).toBe('command')
+
+    await store.submit('mount /mnt/demo')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: '已挂载: /mnt/demo',
+    })
+
+    await store.submit('ls /mnt')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: 'demo/',
+    })
+  })
+
+  it('keeps cwd after unmounting and warns through a system chunk', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('cd /mnt/demo')
+    await store.submit('unmount /mnt/demo')
+
+    expect(store.cwd).toBe('/mnt/demo')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'system',
+      content: '提示：当前目录位于已卸载的挂载点内，请使用 cd 切换到其他目录。',
+    })
+
+    await store.submit('ls')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'error',
+      content: 'ls: 无法访问 /mnt/demo: 目录不存在',
+    })
+
+    await store.submit('cd ~')
+    expect(store.cwd).toBe(siteConfig.homeDir)
+
+    await store.submit('mount /mnt/demo')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: '已挂载: /mnt/demo',
+    })
   })
 })

@@ -39,7 +39,7 @@ function createOutput() {
   return { chunks, output }
 }
 
-function createHarness(commands: Command[]) {
+function createHarness(commands: Command[], ready?: Promise<void>) {
   const registry = createCommandRegistry()
   registry.registerAll(commands)
   const { chunks, output } = createOutput()
@@ -48,6 +48,7 @@ function createHarness(commands: Command[]) {
     registry,
     parser: createCommandParser(),
     output,
+    ready,
     buildContext: createCommandContextBuilder({
       getCwd: () => '/home/guest',
       getEnv: () => ({ USER: 'guest', HOME: '/home/guest' }),
@@ -225,5 +226,47 @@ describe('createCommandExecutor', () => {
     await executor.execute('cd')
 
     expect(cwd).toBe('/mnt')
+  })
+
+  it('waits for ready before resolving a command', async () => {
+    let release!: () => void
+    const ready = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const { chunks, executor, registry } = createHarness([], ready)
+
+    const task = executor.execute('later')
+    await Promise.resolve()
+    expect(chunks).toEqual([])
+
+    registry.register({
+      name: 'later',
+      description: '延迟注册',
+      execute(ctx) {
+        ctx.output.write('ready!')
+      },
+    })
+    release()
+
+    await expect(task).resolves.toBeUndefined()
+    expect(chunks).toEqual([{ type: 'text', content: 'ready!' }])
+  })
+
+  it('reports a rejected ready gate without rejecting execute()', async () => {
+    let rejectReady!: (error: Error) => void
+    const ready = new Promise<void>((_, reject) => {
+      rejectReady = reject
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { chunks, executor } = createHarness([], ready)
+
+    const task = executor.execute('echo hi')
+    rejectReady(new Error('插件炸了'))
+
+    await expect(task).resolves.toBeUndefined()
+    expect(chunks).toEqual([
+      { type: 'error', content: formatInternalError('插件装载', new Error('插件炸了')) },
+    ])
+    expect(error).toHaveBeenCalledOnce()
   })
 })

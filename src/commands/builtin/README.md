@@ -14,4 +14,5 @@
 | `cat` | 查看文本文件内容（`-n` / 多文件） |
 
 命令实现遵循 `Command` 契约（见 `src/terminal/context/CommandContext.ts`），
-随终端核心注册到 `CommandRegistry`；路径与选项处理复用 `path-argument.ts`。
+由 `createCommandRuntime` 同步注册到 `CommandRegistry`（先于任何插件）；
+路径与选项处理复用 `@/commands/path-argument`。

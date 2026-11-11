@@ -8,10 +8,9 @@
  * 200 KB（UTF-8 字节）直接拒绝。所有错误走 `error` 块，命令从不 throw。
  */
 
+import { rejectUnknownOptions, resolvePathArgument } from '@/commands/path-argument'
 import type { VfsNode } from '@/fs/vfs'
 import type { Command, CommandContext } from '@/terminal/context/CommandContext'
-
-import { rejectUnknownOptions, resolvePathArgument } from './path-argument'
 
 const MAX_TEXT_BYTES = 200 * 1024
 const LINE_NUMBER_WIDTH = 6

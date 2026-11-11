@@ -9,10 +9,9 @@
  * `.` / `..` / 反斜杠规则；输出只写 `text` / `error`，不产生 `html`。
  */
 
+import { rejectUnknownOptions, resolvePathArgument } from '@/commands/path-argument'
 import type { VfsNode } from '@/fs/vfs'
 import type { Command, CommandContext } from '@/terminal/context/CommandContext'
-
-import { rejectUnknownOptions, resolvePathArgument } from './path-argument'
 
 const DIRECTORY_PERMISSIONS = 'drwxr-xr-x'
 const FILE_PERMISSIONS = '-rw-r--r--'

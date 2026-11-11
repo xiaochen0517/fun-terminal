@@ -40,6 +40,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     registry: commandRuntime.registry,
     parser: createCommandParser(),
     output: outputBuffer,
+    ready: commandRuntime.ready,
     buildContext: createCommandContextBuilder({
       getCwd: () => cwd.value,
       getEnv: () => env.value,

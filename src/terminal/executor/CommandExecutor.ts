@@ -31,6 +31,11 @@ export interface CommandExecutorOptions {
   output: OutputBuffer
   /** 上下文构建函数（命令与测试共用） */
   buildContext(parsed: ParsedCommand, output: OutputBuffer): CommandContext
+  /**
+   * 插件装载完成信号（M6）：缺省视为已就绪。
+   * 每次执行前 await，保证插件命令已注册、内容已挂载。
+   */
+  ready?: Promise<void>
 }
 
 /** 创建命令执行器 */
@@ -50,6 +55,18 @@ export function createCommandExecutor(options: CommandExecutorOptions): CommandE
       console.error('[fun-terminal] 命令解析失败', error)
       output.push({ type: 'error', content: formatInternalError('命令解析', error) })
       return
+    }
+
+    // 插件命令在 install 完成后才注册；执行前等待就绪，避免误报「未找到命令」。
+    // ready 按设计永不 reject，这里仍兜底，保持 execute() 永不 reject 的契约。
+    if (options.ready) {
+      try {
+        await options.ready
+      } catch (error) {
+        console.error('[fun-terminal] 插件装载失败', error)
+        output.push({ type: 'error', content: formatInternalError('插件装载', error) })
+        return
+      }
     }
 
     const command = registry.get(parsed.name)

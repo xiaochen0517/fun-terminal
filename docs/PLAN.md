@@ -394,21 +394,25 @@ src/fs/__tests__/home-content.spec.ts
 
 **目标**：把「插件挂载内容 + 扩展命令」做成核心可复用的装载机制：插件通过核心 `PluginApi`/`MountApi` 挂载内容树、注册命令；后续内容插件（M8/M9）无需改动核心即可接入。
 
+**状态**：已完成（20261111 人工页面验收通过；需求文档 `docs/demands/20261111-02-内容挂载插件框架.md`）。
+
 **前置**：M3、M4
 
 **范围**：
 
-- 包含：`PluginApi`（registry/mounts/vfs/dataSource）、插件装载器（支持同步/异步 `install`、失败隔离、`runtime.ready` 门）、挂载点白名单与冲突策略、示例插件（挂载 `/mnt/demo`）、测试插件提供 `mount`/`unmount` 命令以验证运行时挂载能力。
+- 包含：`PluginApi`（registry/mounts/vfs/dataSource）、插件装载器（支持同步/异步 `install`、失败隔离、`runtime.ready` 门）、挂载点白名单与冲突策略、示例插件（挂载 `/mnt/demo`，并提供 `mount`/`unmount` 示例命令验证运行时挂载能力）。
 - 不包含：远程插件安装/卸载、插件沙箱、真实本地目录（File System Access API）、界面上的插件管理入口。
 
-**交付物**：
+**交付物**（最终路径以需求文档 4.1 为准）：
 
 ```
-src/commands/plugins/example/index.ts      示例插件：install 时挂载 /mnt/demo
-src/commands/plugins/__tests__/loader.spec.ts   装载顺序、白名单、冲突、失败隔离、ready
-src/commands/plugins/__tests__/mount-cmd.spec.ts 测试插件：mount/unmount 命令
-src/commands/index.ts                      装配扩展：plugins 参数、await install、ready
+src/commands/loader.ts                     插件装载器：PluginApi / install / installPlugins
+src/commands/index.ts                      装配扩展：plugins 参数、核心命令同步注册、ready、commands 实时视图
+src/commands/plugins/demo/index.ts         示例插件：install 时挂载 /mnt/demo，注册 mount/unmount
+src/commands/plugins/demo/tree.ts          示例内容与 createDemoTree()
 src/terminal/executor/CommandExecutor.ts   执行前 await runtime.ready
+src/commands/__tests__/loader.spec.ts      装载顺序、失败隔离、空插件、注册时机
+src/commands/__tests__/runtime.spec.ts     ready、核心优先、挂载透传、实例隔离
 ```
 
 **关键技术点**：
@@ -416,7 +420,7 @@ src/terminal/executor/CommandExecutor.ts   执行前 await runtime.ready
 - **插件契约**：`CommandPlugin` 增加 `install?(api: PluginApi)`，`commands` 改为可选；核心按顺序 `await install`，单个插件抛错记录 `console.error` 后跳过，不阻断其他插件与终端启动。
 - **挂载**：插件调用 `api.mounts.mount(target, tree)`；树由核心节点构造器/`build.ts` 生成；目标限 `/mnt/**`（至少一级子目录），`/`、`/home`、`/home/guest` 拒绝；同一目标重复挂载告警并保留先挂载者。
 - **命令侧挂载能力**：`CommandContext.mounts` 暴露 `MountApi`，插件命令可通过 `ctx.mounts` 在运行时挂载/卸载，并用 `ctx.output` 输出结果（`mount`/`unmount` 即插件命令示例，核心不内置）。
-- **就绪门**：`createCommandRuntime({ dataSource, plugins })` 返回 `ready`；执行器每次执行前 `await ready`，未来异步内容源不会出现「命令先于挂载」的竞态。
+- **就绪门**：`createCommandRuntime({ dataSource, vfs, mounts, plugins })` 返回 `ready`；执行器每次执行前 `await ready`，未来异步内容源不会出现「命令先于挂载」的竞态。
 - **能力边界**：插件不得 import Store 或运行时单例；只读 `vfs` 仅用于查询，修改一律走 `mounts`。
 
 **验收标准**：
@@ -425,11 +429,13 @@ src/terminal/executor/CommandExecutor.ts   执行前 await runtime.ready
 - [ ] 示例插件挂载 `/mnt/demo` 后，`ls /mnt/demo`、`cat /mnt/demo/<文件>` 可访问；`unmount` 后该路径恢复。
 - [ ] 非法挂载点（`/`、`/home/guest`、`/tmp/x`）被拒绝并告警。
 - [ ] 同一目标重复挂载告警且保留先挂载者。
-- [ ] 测试插件的 `mount`/`unmount` 命令可在运行时挂载/卸载并通过 `ctx.output` 输出结果。
+- [ ] 示例插件的 `mount`/`unmount` 命令可在运行时挂载/卸载并通过 `ctx.output` 输出结果。
 - [ ] `help` 自动包含插件命令；插件重名命令无法覆盖核心命令。
 - [ ] 门禁通过。
 
-**建议需求文档名**：`YYYYMMDD-01-内容挂载插件框架.md`
+**需求文档**：`docs/demands/20261111-02-内容挂载插件框架.md`（已完成）
+
+> 20261111：M6 需求文档审核通过（Q-01～Q-11 按建议执行），实现与四项门禁完成（28 个测试文件 / 340 个用例），并已通过人工页面验收；下一里程碑为 M7 数据层与静态文章。
 
 ---
 
@@ -779,7 +785,7 @@ docs/README.md                             索引补全
 | M3 VFS 与挂载 | 已完成 | `20261110-02-虚拟文件系统与挂载.md` | 20261110 |
 | M4 核心导航命令 | 已完成 | `20261110-03-核心导航命令.md` | 20261110 |
 | M5 核心文件浏览命令 | 已完成 | `20261111-01-核心文件浏览命令.md` | 20261111 |
-| M6 内容挂载插件框架 | 待启动 | — | — |
+| M6 内容挂载插件框架 | 已完成 | `20261111-02-内容挂载插件框架.md` | 20261111 |
 | M7 数据层与静态文章 | 待启动 | — | — |
 | M8 博客插件 | 待启动 | — | — |
 | M9 图片插件 | 待启动 | — | — |
@@ -820,3 +826,6 @@ docs/README.md                             索引补全
 | 20261111 | M5 需求文档 `20261111-01-核心文件浏览命令.md` 创建并提交审核（状态：待审核；含 Q-01～Q-11 待确认项）；补充 home 示例内容建议、`ls` 格式取舍、`cat` 分类与阈值，以及共享 `~` 展开方案 |
 | 20261111 | M5 审核通过（Q-01～Q-11 按建议执行）并完成实现：`ls`/`cat`、共享 `path-argument.ts`、home 示例内容；23 个测试文件 / 269 个用例与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工页面验收 |
 | 20261111 | M5 人工页面验收通过（按 2.3 脚本逐项确认，无退化），状态更新为「已完成」（验收日期 20261111）；下一里程碑为 M6 内容挂载插件框架 |
+| 20261111 | M6 需求文档 `20261111-02-内容挂载插件框架.md` 创建并提交审核（状态：待审核；含 Q-01～Q-11 待确认项）；补充 `PluginApi`、装载器失败隔离、`ready` 就绪门、`/mnt/demo` 示例插件与 `mount`/`unmount` 示例命令方案 |
+| 20261111 | M6 审核通过并完成实现：`PluginApi`/装载器/`ready` 就绪门、示例插件 demo（`/mnt/demo` + `mount`/`unmount`）、`path-argument.ts` 上移；28 个测试文件 / 340 个用例与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工页面验收 |
+| 20261111 | M6 人工页面验收通过（按 2.3 脚本逐项确认，无退化），状态更新为「已完成」（验收日期 20261111）；下一里程碑为 M7 数据层与静态文章 |

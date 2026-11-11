@@ -8,10 +8,9 @@
  * `~` 展开必须发生在 resolve 之前（path 层不展开 `~`）。
  */
 
+import { expandHomeArgument } from '@/commands/path-argument'
 import { resolve } from '@/fs/path'
 import type { Command, CommandContext } from '@/terminal/context/CommandContext'
-
-import { expandHomeArgument } from './path-argument'
 
 function fail(ctx: CommandContext, message: string) {
   ctx.output.push({ type: 'error', content: message })
