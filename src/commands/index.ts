@@ -23,7 +23,7 @@ import type { CommandRegistry } from '@/terminal/registry/CommandRegistry'
 
 /** 运行时依赖：随里程碑扩展 */
 export interface CommandRuntimeDeps {
-  /** 数据访问抽象（M2 为占位实现，M7 替换为 StaticDataSource） */
+  /** 数据访问抽象（M7 起为运行时 fetch 的 StaticDataSource） */
   dataSource: DataSource
   /** 只读虚拟文件系统 */
   vfs: Vfs

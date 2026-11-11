@@ -443,41 +443,48 @@ src/commands/__tests__/runtime.spec.ts     ready、核心优先、挂载透传�
 
 **目标**：建立「命令只依赖 `DataSource` 接口」的数据访问基线，并准备示例文章内容。
 
+**状态**：已完成（20261111；纯数据变更，自动化验收，无 GUI 人工验收；需求文档 `docs/demands/20261111-03-静态数据源与文章内容.md`）。
+
 **前置**：M2；可与 M3–M6 并行。
 
 **范围**：
 
-- 包含：`Article` 元数据清单、3 篇示例 Markdown 文章、`StaticDataSource` 实现、数据源单例（VFS 投影由 M8/M9 插件完成）。
+- 包含：JSON 元数据清单、3 篇示例 Markdown 文章、`StaticDataSource`（运行时 `fetch` + 缓存 + 降级）、数据源单例（VFS 投影由 M8/M9 插件完成）。
 - 不包含：Markdown 渲染（M8）、后端 API、文章搜索、分页。
 
 **交付物**：
 
 ```
-src/data/static/articles/*.md              3 篇中文示例（欢迎/关于/技术笔记）
-src/data/static/articles/index.ts          元数据清单（id/title/date/tags/excerpt）
-src/data/static/StaticDataSource.ts        fetchArticleList / fetchArticle
-src/data/index.ts                          导出 dataSource 单例
-src/data/__tests__/StaticDataSource.spec.ts
+public/content/articles/index.json          元数据清单（id/title/date/excerpt/tags）
+public/content/articles/*.md                3 篇中文示例（欢迎/关于/技术笔记）
+src/data/static/catalog.ts                  元数据校验 / 排序 / 冻结（纯函数）
+src/data/static/StaticDataSource.ts         运行时 fetch 加载（清单/正文/文章三级缓存、失败降级）
+src/data/index.ts                           导出 dataSource 单例
+src/data/__tests__/{catalog,StaticDataSource,articles}.spec.ts
 ```
 
 **关键技术点**：
 
-- **元数据来源**：采用显式 `index.ts` 声明，而非 frontmatter 解析（D-05），保证零依赖、类型安全、构建期可校验。
-- **正文加载**：`import.meta.glob('./articles/*.md', { query: '?raw', import: 'default', eager: true })`，构建期内联，无需运行时请求。
-- **一致性校验**：单测遍历元数据清单，确认每个 `id` 都能取到正文且文件存在，缺漏在测试期暴露。
+- **元数据来源**：`public/content/articles/index.json` 显式声明（用户评审指定），运行时加载后由 `catalog.ts` 校验；不解析 frontmatter、不写死在代码里。
+- **正文加载**：资源放 `public/content/articles/`，运行时 `fetch`（按 `import.meta.env.BASE_URL` 拼 URL），构建期不内联；清单只请求一次，正文按 id 懒加载并缓存。
+- **一致性校验**：`articles.spec.ts` 用 `node:fs` 断言清单 id 集合与 `.md` 文件名集合一致；缺文件、漏登记、字段非法、正文不可被 `cat` 读取均在测试期暴露。
+- **失败降级**：网络错误、404、JSON 非法、结构非法均降级为 `[]` / `null` 并告警一次；失败不缓存，下次调用可重试；终端的其他命令不受影响。
 - **异步契约**：`StaticDataSource` 返回 `Promise`，模拟未来 API 的异步形态，替换 `ApiDataSource` 时命令层无感。
 - **单一数据源**：`cat` 看到的文章原文与 `blog read --raw` 来自同一份数据；M8 插件用同一清单投影 `/mnt/blog` 树，不复制内容。
 
 **验收标准**：
 
-- [ ] `fetchArticleList()` 按日期倒序返回摘要（不含正文）。
-- [ ] `fetchArticle(id)` 返回完整正文；不存在返回 `null`。
-- [ ] 元数据与文章文件一一对应，单测全部通过。
+- [ ] `fetchArticleList()` 通过运行时 `fetch` 按日期倒序返回摘要（不含正文），清单只请求一次。
+- [ ] `fetchArticle(id)` 按需请求正文并返回完整内容；不存在返回 `null`，未知 id 不请求正文。
+- [ ] 元数据与文章文件一一对应，单测全部通过；真实数据 `issues` 为空。
+- [ ] 清单/正文请求失败时降级为 `[]` / `null` 并告警一次，可重试。
 - [ ] 运行时装配使用 `dataSource` 单例，命令通过 `ctx.dataSource` 获取。
 - [ ] `/mnt/blog` 下可看到 `hello.md` 等文件（在 M8 插件挂载后验证）。
 - [ ] 门禁通过。
 
-**建议需求文档名**：`YYYYMMDD-01-静态数据源与文章内容.md`
+**需求文档**：`docs/demands/20261111-03-静态数据源与文章内容.md`（已完成）
+
+> 20261111：M7 已按用户评审落地并完成自动化验收（状态：已完成，无 GUI 人工验收）：元数据改为 `public/content/articles/index.json`，正文为 3 篇 Markdown，运行时 `fetch` 加载并带缓存/降级/告警去重；`catalog.ts` 校验字段与唯一性并冻结结果。四项门禁通过（31 个测试文件 / 419 个用例；JS 101.28 kB / gzip 39.21 kB），`dist` 中文章资源独立发布、JS 不内联正文。
 
 ---
 
@@ -664,7 +671,7 @@ docs/README.md                             索引补全
 | D-02 | 命令名冲突策略 | ① 后注册覆盖；② 告警并保留先注册；③ 抛错 | ②：内置优先，插件冲突可见但不破坏启动 | M2 |
 | D-03 | 输出块类型是否够用 | ① 仅 `text`/`html`；② 增加 `error`（错误色）与 `system`（提示色） | ②：错误与系统提示需要独立样式；`html` 仅承载受控富文本 | M1、M2 |
 | D-04 | `cat` 归属（已作废） | — | 20261110 确认：文件系统属核心，`cat` 归核心命令（M5） | M5 |
-| D-05 | 文章元数据来源 | ① frontmatter 解析；② 显式 `index.ts`；③ 文件名约定 | ②：零依赖、类型安全、构建期可校验 | M7 |
+| D-05 | 文章元数据来源 | ① frontmatter 解析；② 显式 JSON 清单（`public/content/articles/index.json`）；③ 文件名约定 | ②：零解析依赖、数据与代码分离、运行时加载后统一校验（20261111 M7 评审确认：由代码内清单改为 JSON 文件） | M7 |
 | D-06 | Markdown 安全与渲染配置 | ① `html: false` + linkify；② 允许原始 HTML + DOMPurify | ①：内容由站主编写，无需 HTML 直通，减少依赖与 XSS 面 | M8 |
 | D-07 | 图片命令名 | `img` / `view` / `open` / `pic` | `img`：短、语义明确、无命名冲突 | M9 |
 | D-08 | 历史与输出持久化 | ① 仅内存；② 历史持久化到 localStorage | ①：隐私友好、刷新即净；输出设上限（建议 1000 chunk） | M1、M10 |
@@ -786,7 +793,7 @@ docs/README.md                             索引补全
 | M4 核心导航命令 | 已完成 | `20261110-03-核心导航命令.md` | 20261110 |
 | M5 核心文件浏览命令 | 已完成 | `20261111-01-核心文件浏览命令.md` | 20261111 |
 | M6 内容挂载插件框架 | 已完成 | `20261111-02-内容挂载插件框架.md` | 20261111 |
-| M7 数据层与静态文章 | 待启动 | — | — |
+| M7 数据层与静态文章 | 已完成 | `20261111-03-静态数据源与文章内容.md` | 20261111 |
 | M8 博客插件 | 待启动 | — | — |
 | M9 图片插件 | 待启动 | — | — |
 | M10 打磨与上线 | 待启动 | — | — |
@@ -829,3 +836,5 @@ docs/README.md                             索引补全
 | 20261111 | M6 需求文档 `20261111-02-内容挂载插件框架.md` 创建并提交审核（状态：待审核；含 Q-01～Q-11 待确认项）；补充 `PluginApi`、装载器失败隔离、`ready` 就绪门、`/mnt/demo` 示例插件与 `mount`/`unmount` 示例命令方案 |
 | 20261111 | M6 审核通过并完成实现：`PluginApi`/装载器/`ready` 就绪门、示例插件 demo（`/mnt/demo` + `mount`/`unmount`）、`path-argument.ts` 上移；28 个测试文件 / 340 个用例与 type-check/lint/build 全部通过，状态更新为「待验收」，等待人工页面验收 |
 | 20261111 | M6 人工页面验收通过（按 2.3 脚本逐项确认，无退化），状态更新为「已完成」（验收日期 20261111）；下一里程碑为 M7 数据层与静态文章 |
+| 20261111 | M7 需求文档 `20261111-03-静态数据源与文章内容.md` 创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）；补充 3 篇示例文章规格、`?raw` 构建期内联、清单 ↔ 文件一致性校验、排序/冻结与「无可见变化、免 GUI 人工验收」的判定 |
+| 20261111 | M7 评审调整并完成实现：元数据改为 `public/content/articles/index.json`、正文改为运行时 `fetch`（用户指定，取消构建期内联），新增 `catalog.ts` 校验与 `StaticDataSource` 缓存/降级；按用户意见「纯数据免人工验收」；31 个测试文件 / 419 个用例与 type-check/lint/build 全部通过，状态更新为「已完成」（验收日期 20261111）；下一里程碑为 M8 博客插件 |
