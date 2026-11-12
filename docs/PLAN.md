@@ -503,15 +503,21 @@ src/data/__tests__/{catalog,StaticDataSource,articles}.spec.ts
 
 ```
 package.json                                   新增 markdown-it 与 @types/markdown-it
-src/markdown/render.ts                         渲染器单例（html:false / linkify / breaks）
+src/markdown/render.ts                         渲染器（html:false / linkify / breaks / 链接规则）
+src/markdown/escape.ts                         escapeHtml（meta 动态文本转义）
 src/markdown/__tests__/render.spec.ts
+src/markdown/__tests__/escape.spec.ts
 src/commands/plugins/blog/index.ts             CommandPlugin 导出（install 挂载 /mnt/blog）
+src/commands/plugins/blog/command.ts           blog 命令与子命令分发
 src/commands/plugins/blog/tree.ts              文章清单 → VfsNode 子树（/mnt/blog/<id>.md）
+src/commands/plugins/blog/format.ts            列表/标签/空态格式化
 src/commands/plugins/blog/list.ts
 src/commands/plugins/blog/read.ts
 src/commands/plugins/blog/tags.ts
 src/commands/plugins/blog/tag.ts
 src/commands/plugins/blog/__tests__/*.spec.ts
+src/commands/__tests__/blog-runtime.spec.ts    端到端（伪造 DataSource + 独立 VFS）
+src/__tests__/setup.ts                         测试环境默认 fetch 桩
 src/terminal/theme.css                         .md 正文样式（标题/代码/引用/表格/链接）
 ```
 
@@ -534,6 +540,10 @@ src/terminal/theme.css                         .md 正文样式（标题/代码/
 - [ ] 门禁通过。
 
 **建议需求文档名**：`YYYYMMDD-01-博客插件与Markdown渲染.md`
+
+**需求文档**：`docs/demands/20261112-01-博客插件与Markdown渲染.md`（已完成）
+
+> 20261112：M8 需求文档审核通过（Q-01～Q-12 按建议执行，`help` 条数修正为 11），实现与四项门禁完成（42 个测试文件 / 483 个用例），并已通过人工页面验收；下一里程碑为 M9 图片插件（img）。
 
 ---
 
@@ -794,7 +804,7 @@ docs/README.md                             索引补全
 | M5 核心文件浏览命令 | 已完成 | `20261111-01-核心文件浏览命令.md` | 20261111 |
 | M6 内容挂载插件框架 | 已完成 | `20261111-02-内容挂载插件框架.md` | 20261111 |
 | M7 数据层与静态文章 | 已完成 | `20261111-03-静态数据源与文章内容.md` | 20261111 |
-| M8 博客插件 | 待启动 | — | — |
+| M8 博客插件 | 已完成 | `20261112-01-博客插件与Markdown渲染.md` | 20261112 |
 | M9 图片插件 | 待启动 | — | — |
 | M10 打磨与上线 | 待启动 | — | — |
 
@@ -838,3 +848,6 @@ docs/README.md                             索引补全
 | 20261111 | M6 人工页面验收通过（按 2.3 脚本逐项确认，无退化），状态更新为「已完成」（验收日期 20261111）；下一里程碑为 M7 数据层与静态文章 |
 | 20261111 | M7 需求文档 `20261111-03-静态数据源与文章内容.md` 创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）；补充 3 篇示例文章规格、`?raw` 构建期内联、清单 ↔ 文件一致性校验、排序/冻结与「无可见变化、免 GUI 人工验收」的判定 |
 | 20261111 | M7 评审调整并完成实现：元数据改为 `public/content/articles/index.json`、正文改为运行时 `fetch`（用户指定，取消构建期内联），新增 `catalog.ts` 校验与 `StaticDataSource` 缓存/降级；按用户意见「纯数据免人工验收」；31 个测试文件 / 419 个用例与 type-check/lint/build 全部通过，状态更新为「已完成」（验收日期 20261111）；下一里程碑为 M8 博客插件 |
+| 20261112 | M8 需求文档 `20261112-01-博客插件与Markdown渲染.md` 创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）；补充 `markdown-it` 渲染与安全配置、`blog` 五种子命令规格、`install` 预取并投影 `/mnt/blog`、`.md` 正文样式、启动请求变化与既有断言更新范围 |
+| 20261112 | M8 审核通过并完成实现：`markdown-it` 渲染层、`blog list/read/--raw/tags/tag`、`install` 预取并挂载 `/mnt/blog`、`.md` 样式、测试 `fetch` 桩与 `setup.ts`；42 个测试文件 / 483 个用例与四项门禁全部通过，`help` 条数修正为 11；状态更新为「待验收」，等待人工页面验收 |
+| 20261112 | M8 人工页面验收通过（按 2.3 脚本逐项确认，无退化），状态更新为「已完成」（验收日期 20261112）；下一里程碑为 M9 图片插件 |

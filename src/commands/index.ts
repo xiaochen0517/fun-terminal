@@ -11,6 +11,7 @@
 import type { CommandPlugin } from '@/commands/CommandPlugin'
 import { builtinCommands } from '@/commands/builtin'
 import { createPluginApi, installPlugins } from '@/commands/loader'
+import { blogPlugin } from '@/commands/plugins/blog'
 import { demoPlugin } from '@/commands/plugins/demo'
 import { dataSource } from '@/data'
 import type { DataSource } from '@/data/DataSource'
@@ -70,8 +71,8 @@ export function createCommandRuntime(options: CommandRuntimeOptions): CommandRun
   }
 }
 
-/** 当前启用的插件：M6 起为 demo；M8/M9 依次追加 blog / image */
-const appPlugins: readonly CommandPlugin[] = [demoPlugin]
+/** 当前启用的插件：M6 起为 demo；M8 追加 blog；M9 再追加 image */
+const appPlugins: readonly CommandPlugin[] = [demoPlugin, blogPlugin]
 
 /** 应用级单例 */
 export const commandRuntime: CommandRuntime = createCommandRuntime({

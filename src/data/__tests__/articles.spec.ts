@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { commandRuntime } from '@/commands'
 import { dataSource } from '@/data'
 import { buildArticleCatalog } from '@/data/static/catalog'
+import { createStaticDataSource } from '@/data/static/StaticDataSource'
 import type { FetchResponseLike } from '@/data/static/StaticDataSource'
 
 // Vitest 的 root 为项目根目录；直接以 cwd 定位 public 静态资源，避免依赖 import.meta.url 的形态。
@@ -141,11 +142,12 @@ describe('application data source', () => {
 
   it('loads the real manifest and article through fetch', async () => {
     const fetchMock = stubContentFetch()
+    const source = createStaticDataSource({ fetchImpl: fetchMock })
 
-    const list = await dataSource.fetchArticleList()
+    const list = await source.fetchArticleList()
     expect(list.map((summary) => summary.id)).toEqual(['vfs-notes', 'about', 'hello'])
 
-    const article = await dataSource.fetchArticle('hello')
+    const article = await source.fetchArticle('hello')
     expect(article?.content).toBe(bodies.get('hello'))
 
     expect(fetchMock).toHaveBeenCalledWith('/content/articles/index.json')

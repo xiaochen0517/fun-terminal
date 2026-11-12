@@ -34,5 +34,5 @@ export const examplePlugin: CommandPlugin = {
 | 插件 | 状态 | 说明 |
 | --- | --- | --- |
 | `demo/` | 已实现（M6） | 挂载 `/mnt/demo`，提供 `mount` / `unmount` 示例命令 |
-| `blog/` | M8 | 博客浏览与 `/mnt/blog` 挂载 |
+| `blog/` | 已实现（M8） | 挂载 `/mnt/blog`，提供 `blog list/read/tags/tag` 与 Markdown 渲染 |
 | `image/` | M9 | 图片查看与 `/mnt/gallery` 挂载 |

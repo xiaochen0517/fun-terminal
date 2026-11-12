@@ -175,8 +175,9 @@ describe('useTerminalStore', () => {
 
     const chunk = store.chunks[store.chunks.length - 1]
     const content = chunk?.type === 'text' ? chunk.content : ''
-    expect(content).toContain('共 10 条')
+    expect(content).toContain('共 11 条')
     for (const name of [
+      'blog',
       'cat',
       'cd',
       'clear',
@@ -248,7 +249,7 @@ describe('useTerminalStore', () => {
     await store.submit('ls /mnt')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
       type: 'text',
-      content: 'demo/',
+      content: 'blog/\ndemo/',
     })
 
     await store.submit('ls /mnt/demo')
@@ -269,10 +270,10 @@ describe('useTerminalStore', () => {
 
     await store.submit('mount')
     const listed = store.chunks[store.chunks.length - 1]
-    expect(listed).toEqual({
-      type: 'text',
-      content: '已挂载的目录（1）：\n  /mnt/demo',
-    })
+    const mountText = listed?.type === 'text' ? listed.content : ''
+    expect(mountText).toContain('已挂载的目录（2）：')
+    expect(mountText).toContain('/mnt/demo')
+    expect(mountText).toContain('/mnt/blog')
 
     await store.submit('unmount /mnt/demo')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
@@ -281,7 +282,10 @@ describe('useTerminalStore', () => {
     })
 
     await store.submit('ls /mnt')
-    expect(store.chunks[store.chunks.length - 1]?.type).toBe('command')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: 'blog/',
+    })
 
     await store.submit('mount /mnt/demo')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
@@ -292,7 +296,7 @@ describe('useTerminalStore', () => {
     await store.submit('ls /mnt')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
       type: 'text',
-      content: 'demo/',
+      content: 'blog/\ndemo/',
     })
   })
 
