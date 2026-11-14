@@ -3,7 +3,8 @@
  *
  * 处理顺序：选项校验 → 逐参数解析 → 目录/文件格式化 → 输出。
  * 目录默认单列、目录名追加 `/`；`-a` 显示隐藏条目与 `.` / `..`；
- * `-l` 输出「固定权限位 + UTF-8 字节数 + 名称」。
+ * `-l` 输出「固定权限位 + UTF-8 字节数 + 名称」；外部资源（`meta.src`，
+ * 如图片）不保存正文，大小列显示 `-`。
  *
  * 路径解析统一走 `resolvePathArgument` 与 `ctx.vfs.resolve`，命令内不复写
  * `.` / `..` / 反斜杠规则；输出只写 `text` / `error`，不产生 `html`。
@@ -35,7 +36,10 @@ function utf8Bytes(text: string): number {
 }
 
 function sizeOf(node: VfsNode): string {
-  return node.type === 'file' ? String(utf8Bytes(node.content ?? '')) : '-'
+  if (node.type !== 'file') return '-'
+  // 外部资源（如图片，正文不在 VFS 内）无法得知字节数，显示占位符而非伪造 0
+  if (node.meta?.src) return '-'
+  return String(utf8Bytes(node.content ?? ''))
 }
 
 function sortedChildren(node: VfsNode, showAll: boolean): VfsNode[] {

@@ -212,4 +212,27 @@ describe('ls 命令', () => {
       true,
     )
   })
+
+  it('ls -l 对外部资源（meta.src）显示 -，文本文件仍显示字节数', () => {
+    const { context, chunks } = createTestContext({
+      args: ['/mnt/gallery'],
+      options: { '-l': true },
+    })
+    context.mounts.mount(
+      '/mnt/gallery',
+      buildTree({
+        'image.png': { file: '', meta: { mime: 'image/png', src: '/assets/image.png' } },
+        'note.txt': 'hello',
+      }),
+    )
+
+    lsCommand.execute(context)
+
+    expect(chunks).toEqual([
+      {
+        type: 'text',
+        content: '-rw-r--r--       -  image.png\n-rw-r--r--       5  note.txt',
+      },
+    ])
+  })
 })

@@ -35,4 +35,4 @@ export const examplePlugin: CommandPlugin = {
 | --- | --- | --- |
 | `demo/` | 已实现（M6） | 挂载 `/mnt/demo`，提供 `mount` / `unmount` 示例命令 |
 | `blog/` | 已实现（M8） | 挂载 `/mnt/blog`，提供 `blog list/read/tags/tag` 与 Markdown 渲染 |
-| `image/` | M9 | 图片查看与 `/mnt/gallery` 挂载 |
+| `image/` | 已实现（M9） | 挂载 `/mnt/gallery`，提供 `img <图片路径>` 与 `.img` 响应式图片排版 |

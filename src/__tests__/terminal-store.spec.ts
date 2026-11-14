@@ -175,7 +175,7 @@ describe('useTerminalStore', () => {
 
     const chunk = store.chunks[store.chunks.length - 1]
     const content = chunk?.type === 'text' ? chunk.content : ''
-    expect(content).toContain('共 11 条')
+    expect(content).toContain('共 12 条')
     for (const name of [
       'blog',
       'cat',
@@ -184,6 +184,7 @@ describe('useTerminalStore', () => {
       'echo',
       'help',
       'history',
+      'img',
       'ls',
       'mount',
       'pwd',
@@ -249,7 +250,7 @@ describe('useTerminalStore', () => {
     await store.submit('ls /mnt')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
       type: 'text',
-      content: 'blog/\ndemo/',
+      content: 'blog/\ndemo/\ngallery/',
     })
 
     await store.submit('ls /mnt/demo')
@@ -264,6 +265,30 @@ describe('useTerminalStore', () => {
     expect(content.startsWith('     1\t示例笔记：核心与插件的边界\n')).toBe(true)
   })
 
+  it('lists and renders the gallery images mounted by the plugin', async () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    await store.submit('ls /mnt/gallery')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'text',
+      content: 'domain-name.png\npluto.jpg\nsaturn.webp',
+    })
+
+    await store.submit('img /mnt/gallery/domain-name.png')
+    const chunk = store.chunks[store.chunks.length - 1]
+    expect(chunk?.type).toBe('html')
+    const html = chunk?.type === 'html' ? chunk.content : ''
+    expect(html).toContain('<figure class="img">')
+    expect(html).toContain('width="977"')
+    expect(html).toContain('height="358"')
+
+    await store.submit('cat /mnt/gallery/domain-name.png')
+    const cat = store.chunks[store.chunks.length - 1]
+    expect(cat?.type).toBe('error')
+    expect(cat?.type === 'error' ? cat.content : '').toContain('请使用 img 查看')
+  })
+
   it('lists mounts and can unmount and remount the demo content', async () => {
     const store = useTerminalStore()
     store.clearOutput()
@@ -271,9 +296,10 @@ describe('useTerminalStore', () => {
     await store.submit('mount')
     const listed = store.chunks[store.chunks.length - 1]
     const mountText = listed?.type === 'text' ? listed.content : ''
-    expect(mountText).toContain('已挂载的目录（2）：')
+    expect(mountText).toContain('已挂载的目录（3）：')
     expect(mountText).toContain('/mnt/demo')
     expect(mountText).toContain('/mnt/blog')
+    expect(mountText).toContain('/mnt/gallery')
 
     await store.submit('unmount /mnt/demo')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
@@ -284,7 +310,7 @@ describe('useTerminalStore', () => {
     await store.submit('ls /mnt')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
       type: 'text',
-      content: 'blog/',
+      content: 'blog/\ngallery/',
     })
 
     await store.submit('mount /mnt/demo')
@@ -296,7 +322,7 @@ describe('useTerminalStore', () => {
     await store.submit('ls /mnt')
     expect(store.chunks[store.chunks.length - 1]).toEqual({
       type: 'text',
-      content: 'blog/\ndemo/',
+      content: 'blog/\ndemo/\ngallery/',
     })
   })
 

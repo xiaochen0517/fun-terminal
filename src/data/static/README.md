@@ -19,6 +19,19 @@ public/content/articles/
 └── vfs-notes.md
 ```
 
+图片画廊资源在本目录的 `gallery/` 下（M9）：
+
+```
+src/data/static/gallery/
+├── index.ts             # 清单 + import.meta.glob 资源解析
+├── README.md            # 素材来源、许可、尺寸与处理方式
+├── domain-name.png      # PNG 示例（977×358）
+├── pluto.jpg            # JPEG 示例（1280×1280）
+└── saturn.webp          # WebP 示例（1280×654）
+```
+
+图片是构建期资源，不经过 `DataSource`；新增图片需同时登记 `galleryEntries`，`gallery.spec.ts` 会校验清单与文件、mime、尺寸的一致性。
+
 ## 运行时行为
 
 - 清单与正文按 `import.meta.env.BASE_URL` 拼 URL，兼容 `/` 与子路径部署（如 `/site/`）。

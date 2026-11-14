@@ -551,11 +551,13 @@ src/terminal/theme.css                         .md 正文样式（标题/代码/
 
 **目标**：在终端输出区展示站内图片，完成「目录 → 文本 → 图片」三类内容浏览的最后一块拼图。
 
+**状态**：已完成（20261114 人工页面验收通过；需求文档 `docs/demands/20261113-01-图片查看插件.md`）。
+
 **前置**：M6、M7
 
 **范围**：
 
-- 包含：`img <路径>`；png/jpg/jpeg/gif/webp/svg；插件 `install` 时挂载示例画廊到 `/mnt/gallery`；图片自适应尺寸与说明文字。
+- 包含：`img <路径>`；png/jpg/jpeg/gif/webp/svg/bmp/ico/avif（与 `cat` 的图片分类对齐）；插件 `install` 时挂载示例画廊到 `/mnt/gallery`；图片自适应尺寸与说明文字。
 - 不包含：上传、缩放交互、幻灯片、EXIF、视频/音频。
 
 **交付物**：
@@ -564,33 +566,44 @@ src/terminal/theme.css                         .md 正文样式（标题/代码/
 src/commands/plugins/image/index.ts
 src/commands/plugins/image/img.ts
 src/commands/plugins/image/tree.ts            画廊清单 → VfsNode 子树（/mnt/gallery，meta.src）
-src/commands/plugins/image/__tests__/img.spec.ts
-src/data/static/gallery/index.ts              图片清单（url/mime/alt/说明）
-src/data/static/gallery/*                     2 张示例图片
+src/commands/plugins/image/__tests__/*.spec.ts
+src/data/static/gallery/index.ts              图片清单（file/mime/title/alt/description/width/height）
+src/data/static/gallery/README.md             素材来源、许可与处理方式
+src/data/static/gallery/*                     3 张示例图（PNG / JPEG / WebP）
 ```
 
 **关键技术点**：
 
 - **命令名**：`img`（D-07），语义明确、短、不与常见 Linux 命令冲突。
-- **渲染方式**：输出 `html` chunk，`<figure><img src alt loading="lazy"><figcaption>`；`max-width: 100%`，高度自适应，避免撑破终端布局。
-- **资源来源**：示例图片用 `import.meta.glob('./gallery/*', { eager: true, query: '?url', import: 'default' })` 获取构建后 URL；VFS 节点 `meta.src` 保存该 URL；插件 `install(api)` 时用 `api.mounts.mount('/mnt/gallery', tree)` 挂载。
-- **格式校验**：按扩展名 + `meta.mime` 双重判断；非图片文件提示 `img: 不支持的图片格式: xxx`。
+- **渲染方式**：输出 `html` chunk，`<figure class="img"><img src alt width height loading="lazy" decoding="async"><figcaption>`；`max-width: 100%` + `max-height: 70vh`，避免撑破终端布局。
+- **滚动跟随**：`Terminal.vue` 监听图片 `load` 与输出区 `ResizeObserver`，用户贴底时图片加载完成后自动滚动到底；用户上滚后不强行拉回。
+- **资源来源**：示例图片用 `import.meta.glob('./*.{svg,png,…}', { eager: true, query: '?url&no-inline', import: 'default' })` 获取构建后 URL（避免 base64 内联）；VFS 节点 `meta.src` 保存该 URL；插件 `install(api)` 时用 `api.mounts.mount('/mnt/gallery', tree)` 挂载。
+- **格式校验**：扩展名或 `meta.mime` 任一命中即支持；非图片文件提示 `img: xxx: 不是图片文件`，图片类但不支持的格式提示 `img: 不支持的图片格式: xxx`。
 
 **验收标准**：
 
-- [ ] `img /mnt/gallery/01.png` 在输出区渲染图片，带说明文字，窄屏下不溢出。
+- [ ] `img /mnt/gallery/domain-name.png` 在输出区渲染图片，带标题与说明文字，窄屏下不溢出。
 - [ ] `ls /mnt/gallery` 能看到图片文件，`cat` 图片时提示改用 `img`。
-- [ ] 不存在的路径提示文件不存在；文本文件提示格式不支持。
-- [ ] 图片节点带 `alt`，在 jsdom 测试中可断言 `src`/`alt`。
+- [ ] 不存在的路径提示文件不存在；文本文件提示不是图片文件；`ls -l` 图片大小列为 `-`。
+- [ ] 图片节点带 `alt`，在 jsdom 测试中可断言 `src`/`alt`/`width`/`height`。
+- [ ] 图片加载完成后终端自动滚动到底部，输入行保持可见；用户上滚后不被拉回。
 - [ ] 门禁通过。
 
 **建议需求文档名**：`YYYYMMDD-01-图片查看插件.md`
+
+**需求文档**：`docs/demands/20261113-01-图片查看插件.md`（已完成）
+
+> 20261113：M9 需求文档创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）。方案要点：手写 2 张 SVG 示例图（20261114 已按评审改为下载 3 张不同格式图片）；`img` 支持与 `cat` 对齐的 9 种图片格式；`/mnt/gallery` 在 `install` 阶段同步挂载；输出 `<figure class="img">` + `<figcaption>`；`?url&no-inline` 避免 base64 内联；`ls -l` 对外部资源显示 `-`；`help` 11 → 12、`/mnt` 增加 `gallery/`、`mount` 2 → 3 项为预期可见变化。
+>
+> 20261114：用户审核通过（Q-01 改为下载不同格式示例图，其余按建议）；实现完成：3 张 PNG/JPEG/WebP 公共领域素材、`img` 命令、`/mnt/gallery` 同步挂载、`.img` 样式、`ls -l` 外部资源 `-`；47 个测试文件 / 517 个用例与四项门禁通过；GUI 验收发现图片加载后未贴底，已修复（`Terminal.vue` 监听 `load` / `ResizeObserver`，贴底时自动跟随、上滚不拉回）；状态更新为「待验收」，等待人工页面验收；20261114 人工按 2.3 脚本复验通过，M9 验收完成。
 
 ---
 
 ### M10 打磨与上线
 
 **目标**：把「能用的终端」打磨成「可对外访问的个人站点」，并完成文档收尾。
+
+**状态**：待审核（需求文档 `docs/demands/20261114-01-终端打磨与站点上线.md`，含 Q-01～Q-12）。
 
 **前置**：M4、M5、M6、M7、M8、M9
 
@@ -634,6 +647,10 @@ docs/README.md                             索引补全
 
 **建议需求文档名**：`YYYYMMDD-01-终端打磨与站点上线.md`
 
+**需求文档**：`docs/demands/20261114-01-终端打磨与站点上线.md`（待审核）
+
+> 20261114：M10 需求文档创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）。方案要点：`siteConfig` 增加 `version`/`title`/`banner`，冷启动 banner + motd、`help` 头部展示 `hostname vversion`；新增 `completion.ts`（仅命令名补全）与 `output-limit.ts`（1000 chunk 上限 + 首部截断提示）；`TerminalInput` 增加 Tab / Ctrl+L / Ctrl+C；`TerminalOutput` 加 `role="log"` + `aria-live`；`theme.css` 增加 640px 窄屏断点；`vite.config.ts` 支持 `VITE_BASE_PATH`；重写 `README.md` 并回写架构/PLAN/索引。
+
 ## 4. 架构覆盖矩阵
 
 ### 4.1 架构章节覆盖
@@ -666,7 +683,7 @@ docs/README.md                             索引补全
 | `ls` | 核心 | M5 | `-a`/`-l`，多路径，单列 + `/` 后缀 |
 | `cat` | 核心 | M5 | 文本读取；`-n`、多文件、图片/二进制识别；D-04 已作废 |
 | `blog` | 插件（blog） | M8 | `list`/`read`/`read --raw`/`tags`/`tag`；插件挂载 `/mnt/blog` |
-| `img` | 插件（image） | M9 | 插件挂载 `/mnt/gallery` |
+| `img` | 插件（image） | M9 | `img <路径>` 输出 `<figure>`；插件挂载 `/mnt/gallery` |
 | `mount` / `unmount` | 插件能力 | M6 | 插件命令通过 `ctx.mounts` 提供，核心不内置；用于展示运行时挂载/卸载 |
 
 > 20261110 确认：VFS、路径、挂载与 `pwd`/`cd`/`ls`/`cat` 属核心（M3/M4/M5）；插件通过 `PluginApi` 挂载内容树并在 `install` 时注册命令，也可提供 `mount`/`unmount` 等挂载管理命令。
@@ -805,8 +822,8 @@ docs/README.md                             索引补全
 | M6 内容挂载插件框架 | 已完成 | `20261111-02-内容挂载插件框架.md` | 20261111 |
 | M7 数据层与静态文章 | 已完成 | `20261111-03-静态数据源与文章内容.md` | 20261111 |
 | M8 博客插件 | 已完成 | `20261112-01-博客插件与Markdown渲染.md` | 20261112 |
-| M9 图片插件 | 待启动 | — | — |
-| M10 打磨与上线 | 待启动 | — | — |
+| M9 图片插件 | 已完成 | `20261113-01-图片查看插件.md` | 20261114 |
+| M10 打磨与上线 | 待审核 | `20261114-01-终端打磨与站点上线.md` | — |
 
 ## 10. 暂不纳入路线图（Backlog）
 
@@ -851,3 +868,8 @@ docs/README.md                             索引补全
 | 20261112 | M8 需求文档 `20261112-01-博客插件与Markdown渲染.md` 创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）；补充 `markdown-it` 渲染与安全配置、`blog` 五种子命令规格、`install` 预取并投影 `/mnt/blog`、`.md` 正文样式、启动请求变化与既有断言更新范围 |
 | 20261112 | M8 审核通过并完成实现：`markdown-it` 渲染层、`blog list/read/--raw/tags/tag`、`install` 预取并挂载 `/mnt/blog`、`.md` 样式、测试 `fetch` 桩与 `setup.ts`；42 个测试文件 / 483 个用例与四项门禁全部通过，`help` 条数修正为 11；状态更新为「待验收」，等待人工页面验收 |
 | 20261112 | M8 人工页面验收通过（按 2.3 脚本逐项确认，无退化），状态更新为「已完成」（验收日期 20261112）；下一里程碑为 M9 图片插件 |
+| 20261113 | M9 需求文档 `20261113-01-图片查看插件.md` 创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）；补充 2 张 SVG 示例图（后于 20261114 按评审改为下载 3 张不同格式图片）、`img` 格式/路径/`meta.src` 校验、`/mnt/gallery` 同步挂载、`<figure>` 输出与 `.img` 样式、`ls -l` 外部资源大小、既有断言更新范围 |
+| 20261114 | M9 审核通过并完成实现（Q-01 改为下载不同格式示例图，其余按建议）：3 张 PNG/JPEG/WebP 公共领域素材、`img` 命令、`/mnt/gallery` 同步挂载、`.img` 样式、`ls -l` 外部资源 `-`；47 个测试文件 / 517 个用例与四项门禁全部通过；GUI 验收发现图片加载后未滚动到底，已修复 `Terminal.vue` 的贴底跟随并补测；状态更新为「待验收」，等待人工页面验收 |
+| 20261114 | 修复 M9 GUI 验收问题“图片加载后终端未滚动到底部”：`Terminal.vue` 增加图片 `load` / 输出区 `ResizeObserver` 贴底跟随与「用户上滚不拉回」判断；缺陷文档 `docs/bugs/20261114-01-图片加载后终端未滚动到底部.md`；测试增至 47 文件 / 517 用例，等待人工复验 |
+| 20261114 | M9 人工页面验收通过（按 2.3 脚本复验，含图片加载后自动贴底、三张图、375px、输入法与错误文案）；状态更新为「已完成」（验收日期 20261114）；下一里程碑为 M10 打磨与上线 |
+| 20261114 | M10 需求文档 `20261114-01-终端打磨与站点上线.md` 创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）；补充 `siteConfig` 扩展（version/title/banner）、Tab 命令补全、Ctrl+L/Ctrl+C、输出上限、窄屏响应式与无障碍、部署 base 配置、README 重写与文档回写方案 |

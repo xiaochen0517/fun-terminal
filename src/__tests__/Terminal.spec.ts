@@ -76,6 +76,33 @@ describe('Terminal', () => {
     expect(inputValue()).toBe('')
   })
 
+  it('renders an image html chunk from the img command', async () => {
+    await submit('img /mnt/gallery/domain-name.png')
+
+    expect(wrapper.findAll('.terminal-chunk--html')).toHaveLength(1)
+    const image = wrapper.get('figure.img img')
+    expect(image.attributes('src')).toBeTruthy()
+    expect(image.attributes('src')?.startsWith('data:')).toBe(false)
+    expect(image.attributes('alt')).toContain('域名')
+    expect(image.attributes('width')).toBe('977')
+    expect(image.attributes('height')).toBe('358')
+    expect(inputValue()).toBe('')
+  })
+
+  it('scrolls to the bottom when an image finishes loading', async () => {
+    await submit('img /mnt/gallery/pluto.jpg')
+
+    const scroll = wrapper.get('.terminal__scroll').element as HTMLElement
+    Object.defineProperty(scroll, 'scrollHeight', { configurable: true, value: 1200 })
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 600 })
+    scroll.scrollTop = 0
+
+    await wrapper.get('figure.img img').trigger('load')
+    await nextTick()
+
+    expect(scroll.scrollTop).toBe(1200)
+  })
+
   it('renders an error for unknown commands and keeps the session usable', async () => {
     await submit('nope')
 
