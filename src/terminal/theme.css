@@ -318,6 +318,26 @@ body {
   }
 }
 
+/* 终端窄屏适配（M10）：减小字号与内边距、提示符允许换行 */
+@media (max-width: 640px) {
+  :root {
+    --term-font-size: 13px;
+  }
+
+  .terminal {
+    padding: 10px 12px;
+  }
+
+  .prompt {
+    white-space: normal;
+    flex-shrink: 1;
+  }
+
+  .terminal__input-line {
+    flex-wrap: wrap;
+  }
+}
+
 /* 图片查看（M9）：样式限定在 .img 内，不影响命令回显与 .md 正文 */
 .img {
   max-width: 100%;

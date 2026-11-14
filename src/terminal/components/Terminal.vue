@@ -109,7 +109,18 @@ onBeforeUnmount(() => {
       <TerminalOutput :chunks="store.chunks" />
       <div class="terminal__input-line">
         <PromptBar :cwd="store.cwd" />
-        <TerminalInput ref="inputRef" v-model="input" :history="store.history" @submit="onSubmit" />
+        <TerminalInput
+          ref="inputRef"
+          v-model="input"
+          :history="store.history"
+          :commands="store.commandNames"
+          :cwd="store.cwd"
+          :vfs="store.vfs"
+          :home-dir="store.homeDir"
+          @submit="onSubmit"
+          @clear-output="store.clearOutput"
+          @list-completions="store.showCompletions"
+        />
       </div>
     </div>
   </div>

@@ -7,6 +7,8 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // 部署基路径：默认根路径 `/`；子路径部署时通过 VITE_BASE_PATH 覆盖（如 /fun-terminal/）
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [
     vue(),
     vueJsx(),

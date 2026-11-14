@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { helpCommand } from '@/commands/builtin/help'
+import { siteConfig } from '@/config/site'
 import type { Command } from '@/terminal/context/CommandContext'
 
 import { createTestContext } from './helpers'
+
+const HEADER = `${siteConfig.hostname} v${siteConfig.version}`
 
 function createCommand(name: string, description: string, usage?: string): Command {
   return { name, description, usage, execute() {} }
@@ -27,6 +30,8 @@ describe('help 命令', () => {
 
     expect(chunks).toHaveLength(1)
     expect(textOf(chunks).split('\n')).toEqual([
+      HEADER,
+      '',
       '可用命令（共 3 条）：',
       '',
       '  clear  清空终端输出',
@@ -47,8 +52,8 @@ describe('help 命令', () => {
     helpCommand.execute(context)
 
     const lines = textOf(chunks).split('\n')
-    expect(lines[2]).toBe('  cat  读取文件')
-    expect(lines[3]).toBe('  ls   列出目录')
+    expect(lines[4]).toBe('  cat  读取文件')
+    expect(lines[5]).toBe('  ls   列出目录')
   })
 
   it('空命令列表只有表头与页脚', () => {
@@ -57,6 +62,8 @@ describe('help 命令', () => {
     helpCommand.execute(context)
 
     expect(textOf(chunks).split('\n')).toEqual([
+      HEADER,
+      '',
       '可用命令（共 0 条）：',
       '',
       '',

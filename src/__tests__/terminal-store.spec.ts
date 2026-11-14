@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { commandRuntime } from '@/commands'
 import { createDemoTree } from '@/commands/plugins/demo/tree'
 import { siteConfig } from '@/config/site'
+import { MAX_OUTPUT_CHUNKS, TRUNCATION_NOTICE } from '@/terminal/output-limit'
 import { MAX_HISTORY, useTerminalStore } from '@/stores/terminal'
 
 describe('useTerminalStore', () => {
@@ -18,11 +19,13 @@ describe('useTerminalStore', () => {
     }
   })
 
-  it('seeds the welcome chunks', () => {
+  it('seeds the banner and welcome chunks', () => {
     const store = useTerminalStore()
 
-    expect(store.chunks).toHaveLength(siteConfig.messages.welcome.length)
+    const expected = siteConfig.banner.length + siteConfig.messages.welcome.length
+    expect(store.chunks).toHaveLength(expected)
     expect(store.chunks.every((chunk) => chunk.type === 'system')).toBe(true)
+    expect(store.chunks[0]).toEqual({ type: 'system', content: siteConfig.banner[0] })
   })
 
   it('echoes the command and appends the command output', async () => {
@@ -175,6 +178,7 @@ describe('useTerminalStore', () => {
 
     const chunk = store.chunks[store.chunks.length - 1]
     const content = chunk?.type === 'text' ? chunk.content : ''
+    expect(content).toContain(`${siteConfig.hostname} v${siteConfig.version}`)
     expect(content).toContain('共 12 条')
     for (const name of [
       'blog',
@@ -353,5 +357,41 @@ describe('useTerminalStore', () => {
       type: 'text',
       content: '已挂载: /mnt/demo',
     })
+  })
+
+  it('exposes command names for completion', async () => {
+    await commandRuntime.ready
+
+    const store = useTerminalStore()
+    expect(store.commandNames).toContain('echo')
+    expect(store.commandNames).toContain('img')
+  })
+
+  it('shows completion candidates as a system chunk', () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    store.showCompletions(['cat', 'cd', 'clear'])
+
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'system',
+      content: '候选：cat  cd  clear',
+    })
+  })
+
+  it('truncates output beyond the cap and resets the notice on clear', () => {
+    const store = useTerminalStore()
+    store.clearOutput()
+
+    for (let index = 0; index < MAX_OUTPUT_CHUNKS + 5; index += 1) {
+      store.outputBuffer.push({ type: 'text', content: `line-${index}` })
+    }
+
+    expect(store.chunks).toHaveLength(MAX_OUTPUT_CHUNKS)
+    expect(store.chunks[0]).toEqual({ type: 'system', content: TRUNCATION_NOTICE })
+
+    store.clearOutput()
+    store.outputBuffer.push({ type: 'text', content: 'after-clear' })
+    expect(store.chunks).toEqual([{ type: 'text', content: 'after-clear' }])
   })
 })

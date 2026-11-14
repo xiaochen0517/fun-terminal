@@ -1,17 +1,26 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { complete } from '@/terminal/completion'
+import type { Vfs } from '@/fs/vfs'
+
 const INPUT_MAX_LENGTH = 1000
 const COMPOSITION_ENTER_GUARD_MS = 50
 
 const props = defineProps<{
   modelValue: string
   history: readonly string[]
+  commands: readonly string[]
+  cwd: string
+  vfs: Vfs
+  homeDir: string
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   submit: [value: string]
+  'clear-output': []
+  'list-completions': [candidates: readonly string[]]
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -83,8 +92,40 @@ function submit() {
   emit('submit', props.modelValue)
 }
 
+function completeInput() {
+  const result = complete(props.modelValue, {
+    commands: props.commands,
+    cwd: props.cwd,
+    vfs: props.vfs,
+    homeDir: props.homeDir,
+  })
+  if (result.type === 'none') return
+
+  emit('update:modelValue', result.value)
+  if (result.type === 'list') emit('list-completions', result.candidates)
+  void nextTick(focusEnd)
+}
+
+function cancelInput() {
+  navIndex.value = null
+  draft.value = ''
+  emit('update:modelValue', '')
+}
+
 function onKeydown(event: KeyboardEvent) {
   if (event.isComposing || event.keyCode === 229) return
+
+  if (event.ctrlKey && (event.key === 'l' || event.key === 'L')) {
+    event.preventDefault()
+    emit('clear-output')
+    return
+  }
+
+  if (event.ctrlKey && (event.key === 'c' || event.key === 'C')) {
+    event.preventDefault()
+    cancelInput()
+    return
+  }
 
   if (event.key === 'Enter') {
     event.preventDefault()
@@ -97,6 +138,12 @@ function onKeydown(event: KeyboardEvent) {
   }
 
   if (event.ctrlKey || event.metaKey || event.altKey) return
+
+  if (event.key === 'Tab') {
+    event.preventDefault()
+    completeInput()
+    return
+  }
 
   if (event.key === 'ArrowUp') {
     event.preventDefault()

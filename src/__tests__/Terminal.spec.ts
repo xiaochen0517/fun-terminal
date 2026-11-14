@@ -4,6 +4,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 import Terminal from '@/terminal/components/Terminal.vue'
+import { commandRuntime } from '@/commands'
+import { siteConfig } from '@/config/site'
 import { useTerminalStore } from '@/stores/terminal'
 
 describe('Terminal', () => {
@@ -40,7 +42,8 @@ describe('Terminal', () => {
     await nextTick()
   }
 
-  it('renders the welcome message and prompt', () => {
+  it('renders the banner, welcome message and prompt', () => {
+    expect(wrapper.text()).toContain(siteConfig.banner[0])
     expect(wrapper.text()).toContain('欢迎来到 fun-terminal')
     expect(wrapper.text()).toContain('guest@fun-terminal')
     expect(wrapper.text()).toContain('~')
@@ -170,5 +173,64 @@ describe('Terminal', () => {
     expect(store.chunks).toEqual([])
     expect(store.history).toEqual(['echo one', 'clear'])
     expect(wrapper.findAll('.terminal-chunk')).toHaveLength(0)
+  })
+
+  it('completes a unique command name on Tab', async () => {
+    await input().setValue('ech')
+    await input().trigger('keydown', { key: 'Tab' })
+    await nextTick()
+
+    expect(inputValue()).toBe('echo ')
+  })
+
+  it('lists candidates on Tab when multiple commands match', async () => {
+    await input().setValue('c')
+    await input().trigger('keydown', { key: 'Tab' })
+    await nextTick()
+
+    expect(inputValue()).toBe('c')
+    expect(store.chunks[store.chunks.length - 1]).toEqual({
+      type: 'system',
+      content: '候选：cat  cd  clear',
+    })
+  })
+
+  it('completes a path on Tab', async () => {
+    await commandRuntime.ready
+    await input().setValue('cat /mnt/b')
+    await input().trigger('keydown', { key: 'Tab' })
+    await nextTick()
+
+    expect(inputValue()).toBe('cat /mnt/blog/')
+  })
+
+  it('does nothing on Tab when nothing matches', async () => {
+    await input().setValue('zz')
+    const before = store.chunks.length
+    await input().trigger('keydown', { key: 'Tab' })
+    await nextTick()
+
+    expect(inputValue()).toBe('zz')
+    expect(store.chunks).toHaveLength(before)
+  })
+
+  it('clears output with Ctrl+L but keeps the input', async () => {
+    await input().setValue('echo hello')
+    await input().trigger('keydown', { key: 'l', ctrlKey: true })
+    await nextTick()
+
+    expect(store.chunks).toHaveLength(0)
+    expect(inputValue()).toBe('echo hello')
+  })
+
+  it('cancels input with Ctrl+C without submitting', async () => {
+    await input().setValue('abc')
+    const before = store.chunks.length
+    await input().trigger('keydown', { key: 'c', ctrlKey: true })
+    await nextTick()
+
+    expect(inputValue()).toBe('')
+    expect(store.history).toEqual([])
+    expect(store.chunks).toHaveLength(before)
   })
 })

@@ -6,22 +6,31 @@
  * 命令不存在：输出错误并提示查看全部命令。
  *
  * 数据只来自 ctx.commands，禁止硬编码命令清单；M6 起自动包含插件命令。
+ * M10 起无参数清单增加站点身份头部（`hostname vversion`），身份来自 siteConfig。
  */
 
+import { siteConfig } from '@/config/site'
 import type { Command } from '@/terminal/context/CommandContext'
 
 const HELP_FOOTER = '输入 help <命令> 查看具体用法。'
+const HELP_HEADER = `${siteConfig.hostname} v${siteConfig.version}`
 
-function formatList(commands: readonly Command[]): string {
+function formatList(commands: readonly Command[], header = HELP_HEADER): string {
   const sorted = [...commands].sort((a, b) => a.name.localeCompare(b.name))
   const width = sorted.reduce((max, command) => Math.max(max, command.name.length), 0)
   const lines = sorted.map(
     (command) => `  ${command.name.padEnd(width)}  ${command.description}`,
   )
 
-  return [`可用命令（共 ${sorted.length} 条）：`, '', ...lines, '', HELP_FOOTER].join(
-    '\n',
-  )
+  return [
+    header,
+    '',
+    `可用命令（共 ${sorted.length} 条）：`,
+    '',
+    ...lines,
+    '',
+    HELP_FOOTER,
+  ].join('\n')
 }
 
 export const helpCommand: Command = {

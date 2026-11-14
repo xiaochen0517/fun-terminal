@@ -603,21 +603,21 @@ src/data/static/gallery/*                     3 张示例图（PNG / JPEG / WebP
 
 **目标**：把「能用的终端」打磨成「可对外访问的个人站点」，并完成文档收尾。
 
-**状态**：待审核（需求文档 `docs/demands/20261114-01-终端打磨与站点上线.md`，含 Q-01～Q-12）。
+**状态**：已完成（20261114 人工页面验收通过；需求文档 `docs/demands/20261114-01-终端打磨与站点上线.md`）。
 
 **前置**：M4、M5、M6、M7、M8、M9
 
 **范围**：
 
-- 包含：站点配置集中化、启动 banner/motd、Tab 命令补全、Ctrl+L/Ctrl+C 快捷键、输出条数上限、响应式与无障碍、静态部署配置、README 与架构文档回写。
-- 不包含：路径/参数补全（进 Backlog）、E2E 自动化、主题切换、多语言、后端。
+- 包含：站点配置集中化（版本号读 package.json）、启动 banner/motd、Tab 命令名 + 路径补全、Ctrl+L/Ctrl+C 快捷键、输出条数上限、响应式（窄屏）、静态部署配置、README 与架构文档回写。
+- 不包含：参数值补全（选项名 / 非路径参数，进 Backlog）、E2E 自动化、主题切换、多语言、后端、无障碍增强。
 
 **交付物**：
 
 ```
 src/config/site.ts                         站点身份与部署配置集中管理（M1 建立，M10 扩展）
-src/terminal/completion.ts                 命令名补全（唯一候选补全，多候选列出）
-src/terminal/components/Terminal.vue       快捷键（Ctrl+L 清屏、Ctrl+C 取消输入）、aria-live
+src/terminal/completion.ts                 命令名 + 路径补全（唯一候选补全，多候选列出）
+src/terminal/components/Terminal.vue       快捷键（Ctrl+L 清屏、Ctrl+C 取消输入）
 src/stores/terminal.ts                     输出上限与截断提示
 src/terminal/theme.css                     响应式断点、移动端字号/间距
 vite.config.ts                             base 与构建配置（按部署目标）
@@ -628,28 +628,28 @@ docs/README.md                             索引补全
 
 **关键技术点**：
 
-- **配置集中**：用户名、主机名、home、欢迎语、版本号统一在 `src/config/site.ts`，提示符、banner、`help` 头部共用，禁止散落硬编码。
-- **补全策略**：Tab 仅补全命令名；唯一匹配直接补全，多个匹配列出候选（最多 N 条）；路径补全列入 Backlog。
+- **配置集中**：用户名、主机名、home、欢迎语、版本号统一在 `src/config/site.ts`（版本号读 `package.json`），提示符、banner、`help` 头部共用，禁止散落硬编码。
+- **补全策略**：Tab 补全命令名与路径；唯一匹配直接补全，多个匹配列出候选（最多 N 条）；参数值补全（选项名/非路径参数）进 Backlog。
 - **输出上限**：超过上限（建议 1000 条 chunk）时丢弃最旧内容并插入「输出已截断」系统提示，防止长时间使用后卡顿（D-08）。
-- **响应式**：窄屏下减小字号与内边距、提示符允许换行、输入区吸附底部；`aria-live="polite"` 声明输出区，隐藏输入框带 `aria-label`。
+- **响应式**：窄屏下减小字号与内边距、提示符允许换行、输入区吸附底部。
 - **部署**：纯静态产物，按目标平台配置 `base`；不引入路由，无需 404 回退（D-11）。
 
 **验收标准**：
 
 - [ ] `src/config/site.ts` 修改用户名/主机名后，提示符、banner、`help` 头部同步变化。
-- [ ] 启动显示 banner/motd；Tab 补全命令名（唯一/多候选两种行为正确）。
+- [ ] 启动显示 banner/motd；Tab 补全命令名与路径（唯一/多候选两种行为正确）。
 - [ ] Ctrl+L 清屏、Ctrl+C 清空当前输入，均不影响历史。
 - [ ] 输出超过上限时出现截断提示，页面滚动与输入仍流畅。
-- [ ] 窄屏（375px 宽）下可正常输入、阅读与滚动；输出区具备无障碍标签。
+- [ ] 窄屏（375px 宽）下可正常输入、阅读与滚动。
 - [ ] `npm run build` 产物可直接部署到目标平台，页面可正常加载（含子路径场景，如适用）。
 - [ ] README 为项目说明；架构文档已回写实现期契约变更；`docs/README.md` 索引完整。
 - [ ] 按第 7 节完成全量手工回归。
 
 **建议需求文档名**：`YYYYMMDD-01-终端打磨与站点上线.md`
 
-**需求文档**：`docs/demands/20261114-01-终端打磨与站点上线.md`（待审核）
+**需求文档**：`docs/demands/20261114-01-终端打磨与站点上线.md`（已完成）
 
-> 20261114：M10 需求文档创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）。方案要点：`siteConfig` 增加 `version`/`title`/`banner`，冷启动 banner + motd、`help` 头部展示 `hostname vversion`；新增 `completion.ts`（仅命令名补全）与 `output-limit.ts`（1000 chunk 上限 + 首部截断提示）；`TerminalInput` 增加 Tab / Ctrl+L / Ctrl+C；`TerminalOutput` 加 `role="log"` + `aria-live`；`theme.css` 增加 640px 窄屏断点；`vite.config.ts` 支持 `VITE_BASE_PATH`；重写 `README.md` 并回写架构/PLAN/索引。
+> 20261114：M10 需求文档创建并提交审核，Q-01～Q-12 已确认。要点：`siteConfig` 增加 `version`（读 package.json，`0.1.0`）/`title`/`banner`，冷启动 banner + motd、`help` 头部展示 `hostname vversion`；新增 `completion.ts`（命令名 + 路径补全）与 `output-limit.ts`（1000 chunk 上限 + 首部截断提示）；`TerminalInput` 增加 Tab / Ctrl+L / Ctrl+C；无障碍不做；`theme.css` 增加 640px 窄屏断点；`vite.config.ts` 支持 `VITE_BASE_PATH`；重写 `README.md` 并回写架构/PLAN/索引。
 
 ## 4. 架构覆盖矩阵
 
@@ -703,7 +703,7 @@ docs/README.md                             索引补全
 | D-07 | 图片命令名 | `img` / `view` / `open` / `pic` | `img`：短、语义明确、无命名冲突 | M9 |
 | D-08 | 历史与输出持久化 | ① 仅内存；② 历史持久化到 localStorage | ①：隐私友好、刷新即净；输出设上限（建议 1000 chunk） | M1、M10 |
 | D-09 | 输入捕获方案 | ① 隐藏 `<textarea>` + 自绘光标；② `contenteditable`；③ 可见输入框 | ①：粘贴/输入法/移动端兼容性最好，样式可控 | M1 |
-| D-10 | Tab 补全范围 | ① 仅命令名；② 命令名 + 路径/参数 | ①：一期先保证命令发现性，路径补全进 Backlog | M10 |
+| D-10 | Tab 补全范围 | ① 仅命令名；② 命令名 + 路径/参数 | ②：M10 做命令名 + 路径补全；参数值补全（选项名/非路径参数）进 Backlog（20261114 确认） | M10 |
 | D-11 | 部署目标 | ① 根路径静态托管；② GitHub Pages 子路径；③ 暂不部署 | ①/③：先保证 `build` 可用，`base` 待目标确定后配置 | M10 |
 | D-12 | 脚手架示例文件处理 | ① 删除 `counter.ts` 并改写 `App.spec.ts`；② 保留 | ①：避免示例代码与真实架构混淆 | M1 |
 | D-13 | 是否引入 E2E 测试 | ① 一期不做，手工回归；② Playwright | ①：终端交互以组件测试 + 手工回归覆盖，控制依赖与工期 | M10 |
@@ -823,7 +823,7 @@ docs/README.md                             索引补全
 | M7 数据层与静态文章 | 已完成 | `20261111-03-静态数据源与文章内容.md` | 20261111 |
 | M8 博客插件 | 已完成 | `20261112-01-博客插件与Markdown渲染.md` | 20261112 |
 | M9 图片插件 | 已完成 | `20261113-01-图片查看插件.md` | 20261114 |
-| M10 打磨与上线 | 待审核 | `20261114-01-终端打磨与站点上线.md` | — |
+| M10 打磨与上线 | 已完成 | `20261114-01-终端打磨与站点上线.md` | 20261114 |
 
 ## 10. 暂不纳入路线图（Backlog）
 
@@ -833,7 +833,7 @@ docs/README.md                             索引补全
 | --- | --- |
 | 命令包远程安装/卸载 | 架构预留扩展点，一期不实现访客可用安装能力 |
 | `ApiDataSource` + 后端服务 | 评论、统计、搜索、鉴权等动态能力的前置 |
-| 路径与参数补全 | M10 仅做命令名补全，路径补全需结合 VFS 与实际使用反馈 |
+| 参数值补全（选项名 / 非路径参数） | M10 已做命令名 + 路径补全；选项名与非路径参数补全进 Backlog |
 | E2E 自动化测试 | 一期以组件测试 + 手工回归覆盖，待交互稳定后评估 Playwright |
 | 真实 ANSI 解析 / xterm.js | 当前自研渲染满足需求，出现复杂着色需求时再评估 |
 | 多语言、主题切换 | 架构已明确不做中英切换；主题切换需产品需求输入 |
@@ -872,4 +872,6 @@ docs/README.md                             索引补全
 | 20261114 | M9 审核通过并完成实现（Q-01 改为下载不同格式示例图，其余按建议）：3 张 PNG/JPEG/WebP 公共领域素材、`img` 命令、`/mnt/gallery` 同步挂载、`.img` 样式、`ls -l` 外部资源 `-`；47 个测试文件 / 517 个用例与四项门禁全部通过；GUI 验收发现图片加载后未滚动到底，已修复 `Terminal.vue` 的贴底跟随并补测；状态更新为「待验收」，等待人工页面验收 |
 | 20261114 | 修复 M9 GUI 验收问题“图片加载后终端未滚动到底部”：`Terminal.vue` 增加图片 `load` / 输出区 `ResizeObserver` 贴底跟随与「用户上滚不拉回」判断；缺陷文档 `docs/bugs/20261114-01-图片加载后终端未滚动到底部.md`；测试增至 47 文件 / 517 用例，等待人工复验 |
 | 20261114 | M9 人工页面验收通过（按 2.3 脚本复验，含图片加载后自动贴底、三张图、375px、输入法与错误文案）；状态更新为「已完成」（验收日期 20261114）；下一里程碑为 M10 打磨与上线 |
-| 20261114 | M10 需求文档 `20261114-01-终端打磨与站点上线.md` 创建并提交审核（状态：待审核；含 Q-01～Q-12 待确认项）；补充 `siteConfig` 扩展（version/title/banner）、Tab 命令补全、Ctrl+L/Ctrl+C、输出上限、窄屏响应式与无障碍、部署 base 配置、README 重写与文档回写方案 |
+| 20261114 | M10 需求文档 `20261114-01-终端打磨与站点上线.md` 创建并提交审核；用户确认 Q-01～Q-12：版本号读 `package.json`（`0.1.0`）、补全改为命令名 + 路径、无障碍不做，其余按建议执行；补充 `siteConfig` 扩展（version/title/banner）、`completion.ts`（命令+路径）、`output-limit.ts`、Ctrl+L/Ctrl+C、窄屏响应式、部署 base、README 重写与文档回写方案 |
+| 20261114 | M10 实现完成：`siteConfig`（version 读 package.json/title/banner）、`main.ts` title、Store banner+mOTD、`help` 头部、`completion.ts`（命令+路径）、`output-limit.ts`（1000 上限）、`TerminalInput` Tab/Ctrl+L/Ctrl+C、`theme.css` 640px 窄屏、`vite.config.ts` base、`README` 重写；49 个测试文件 / 544 个用例与四项门禁通过，子路径构建验证通过；状态更新为「待验收」，等待人工页面验收 |
+| 20261114 | M10 人工页面验收通过（按 2.3 脚本 + PLAN 7.3 全量手工回归逐项确认，无退化），状态更新为「已完成」（验收日期 20261114） |
